@@ -61,3 +61,6 @@ prd.pdf
 .cursor
 skills-lock.json
 bts.jsonc
+.serena/.gitignore
+.serena/project.yml
+.pnpm-store/v11/index.db

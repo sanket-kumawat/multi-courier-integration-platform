@@ -9,7 +9,10 @@
       "default": "./src/*.ts"
     }
   },
-  "scripts": {},
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "dependencies": {
     "@multi-courier-integration-platform/db": "workspace:*",
     "@multi-courier-integration-platform/env": "workspace:*",
@@ -23,6 +26,7 @@
   "devDependencies": {
     "@multi-courier-integration-platform/config": "workspace:*",
     "@types/express": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   }
 }
