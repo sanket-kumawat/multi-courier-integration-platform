@@ -1,0 +1,3 @@
+{
+  "extends": "@multi-courier-integration-platform/config/tsconfig.base.json"
+}
