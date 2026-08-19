@@ -347,128 +347,80 @@ oRPC/Zod validation is translated into `VALIDATION_ERROR` by a single intercepto
 
 ## 7. Data model
 
-PostgreSQL via Drizzle. UUIDv7 (or `uuid` + `created_at`) for internal keys. Timestamps `timestamptz`. JSON payloads `jsonb`.
+PostgreSQL 18 via Drizzle in `packages/db/src/schema`. Internal keys are **UUIDv7** (`uuidv7()`). Timestamps are `timestamptz`. Money is `numeric(12,2)`. Partner payloads that vary by courier stay in `jsonb`. Canonical columns are courier-agnostic.
+
+The model is the **union** of PRD persistence rules and live UrbaneBolt UAT envelopes (probed 2026-08-19). Partner-specific prefixes (`shpr*`, `cons*`, `rtn*`) are normalized into `order_parties.role`. Extra global-manifest fields (HSN, SKU, GST, lat/lng, reverse/DG/surface) are first-class optional columns so a second courier does not force a migration of the public DTO.
+
+Source of truth: `packages/db/src/schema`.
 
 ### 7.1 ERD
 
 ```mermaid
 erDiagram
-  orders ||--o{ tracking_events : "append-only history"
-  orders ||--o{ courier_api_calls : "outbound I/O"
-  bulk_batches ||--o{ bulk_batch_items : "contains"
+  bulk_batches ||--o{ bulk_batch_items : contains
+  bulk_batches ||--o{ orders : "optional batch"
+  orders ||--|{ order_parties : "shipper/consignee/return"
+  orders ||--|{ order_packages : cartons
+  orders ||--o{ tracking_events : "append-only"
+  orders ||--o{ courier_api_calls : "HTTP audit"
+  orders ||--o{ shipment_documents : "label/ePOD"
+  orders ||--o{ shipment_actions : "cancel/NDR/paymode"
   bulk_batch_items }o--o| orders : "optional order"
-
-  orders {
-    uuid id PK
-    text order_id UK
-    text courier_partner
-    text courier_shipment_id
-    text awb
-    text status
-    text payload_hash
-    jsonb request_snapshot
-    timestamptz created_at
-    timestamptz updated_at
-  }
-
-  tracking_events {
-    uuid id PK
-    uuid order_id FK
-    text status
-    text description
-    timestamptz occurred_at
-    jsonb raw_payload
-  }
-
-  courier_api_calls {
-    uuid id PK
-    uuid order_id FK
-    text operation
-    int attempt
-    jsonb request_payload
-    jsonb response_payload
-    int http_status
-  }
-
-  bulk_batches {
-    uuid id PK
-    text status
-    int total
-  }
 ```
 
-### 7.2 `orders`
+### 7.2 Tables
 
-| Column | Notes |
+| Table | Kind | Why |
+| --- | --- | --- |
+| `orders` | mutable header | PRD order row + payment/service/invoice + idempotency hash |
+| `order_parties` | owned 1:3 | Unified shipper/consignee/return (UrbaneBolt `shpr*`/`cons*`/`rtn*`) |
+| `order_packages` | owned 1:N | Weight, dims, SKU, HSN, qty (manifest + global-manifest) |
+| `tracking_events` | append-only | PRD tracking history; never update/delete |
+| `courier_api_calls` | append-only | Every outbound HTTP attempt, including `AUTH` (no `order_id`) |
+| `bulk_batches` / `bulk_batch_items` | worker queue | `202` bulk + `SKIP LOCKED` |
+| `shipment_documents` | append-only | Label + ePOD (`podUrl`, `statusDate`) |
+| `shipment_actions` | append-only | Cancel, NDR RTO, NDR re-attempt, pay-mode change |
+| `pincode_serviceability` | cache | Partner pincode lookup; unique `(courier_partner, pincode)` |
+
+Audit children (`tracking_events`, `courier_api_calls`, documents, actions) use `ON DELETE RESTRICT` so an order cannot be wiped without its history. Parties/packages cascade with the order.
+
+### 7.3 Canonical status
+
+`PENDING` \| `CREATED` \| `PICKED_UP` \| `IN_TRANSIT` \| `OUT_FOR_DELIVERY` \| `DELIVERED` \| `RTO` \| `CANCELLED` \| `FAILED`.
+
+Live partner strings observed: `Delivered`, `Shipment already cancelled!`, `Shipment already in closed stage!`, `RTO Lock already applied!`. Adapters map those; unknown values → `IN_TRANSIT` with the raw string in `tracking_events.partner_status`.
+
+`PENDING` = inserted before the partner call. `FAILED` = retries exhausted.
+
+### 7.4 Indexes (hot paths)
+
+| Index | Purpose |
 | --- | --- |
-| `id` | Internal UUID (PRD “internal order ID”) |
-| `order_id` | Consumer id, **UNIQUE** — idempotency key |
-| `courier_partner` | e.g. `urbanebolt` |
-| `courier_shipment_id` | Partner order/shipment id; nullable until create succeeds |
-| `awb` | Tracking number; nullable until assigned |
-| `status` | Canonical enum (below) |
-| `payload_hash` | SHA-256 of canonical create body (stable JSON stringify) |
-| `request_snapshot` | Full normalized create body |
-| `last_courier_request` | Last outbound create payload (partner shape) |
-| `last_courier_response` | Last inbound create response (partner shape) |
-| `last_error_code` | Nullable; set on terminal failure |
-| `batch_id` | Nullable FK to `bulk_batches` |
-| `created_at` / `updated_at` | |
+| `orders_order_id_uidx` unique | Idempotency + `GET /orders/{order_id}` |
+| `orders_partner_awb_uidx` unique partial (`awb is not null`) | Track/cancel by AWB; collision-safe across partners |
+| `orders_status_created_idx` | Ops lists / reconciliation |
+| `orders_pending_idx` partial | Crash recovery of in-flight creates |
+| `tracking_events_dedup_uidx` unique `(order_id, occurred_at, partner_status)` | Track-poll idempotency |
+| `bulk_batch_items_queued_idx` partial | `SKIP LOCKED` worker |
+| `courier_api_calls_request_id_idx` | Correlate logs to HTTP audit |
+| `pincode_serviceability_partner_pin_uidx` unique | Upsert cache |
 
-Indexes: `order_id` unique; `(courier_partner, awb)` unique where `awb is not null`; `status`; `batch_id`.
+No GIN on `jsonb` unless we later query inside payloads.
 
-**Canonical `status`:** `PENDING` \| `CREATED` \| `PICKED_UP` \| `IN_TRANSIT` \| `OUT_FOR_DELIVERY` \| `DELIVERED` \| `RTO` \| `CANCELLED` \| `FAILED`.
+### 7.5 Constraints
 
-PRD examples (`CREATED`, `PICKED_UP`, `IN_TRANSIT`, `DELIVERED`, `CANCELLED`, `FAILED`) are a subset. Extra values are additive and still courier-agnostic. Adapters map unknown partner statuses to `IN_TRANSIT` and keep the raw string in `tracking_events.raw_payload`.
+- COD ⇒ `collectable_value > 0`; PREPAID ⇒ `collectable_value = 0`
+- Invoice date `YYYY-MM-DD`; pincode `^[0-9]{6}$`; phone `^[0-9]{10,15}$`; country ISO-2
+- Package weight and dimensions `> 0`; bulk `total` in `1..100`
+- Country stored as `IN`; adapters map to partner strings (`INDIA` / `India`)
 
-`PENDING` is ours: row inserted before the partner call. `FAILED` is after retries exhausted.
+### 7.6 Partner envelope (from UAT)
 
-### 7.3 `tracking_events` (append-only)
+Successful mutation APIs share `{ status, message, successResponse[], failedResponse[] }`. Cancel uses `failureResponse` (not `failedResponse`) — parsers must accept both. Auth: `{ access_token, expires_in: 86400, token_type: "Bearer", expires, status }`. Store tokens **in process memory only**, never in Postgres.
 
-No updates, no deletes in application code. Insert on create, every successful track poll, cancel, and mapped failure.
+Raw bodies go in `courier_api_calls.response_payload` (and `orders.last_courier_*` for the last create). Clients never see them.
 
-| Column | Notes |
-| --- | --- |
-| `id` | UUID |
-| `order_id` | FK `orders.id` |
-| `status` | Canonical status at this point |
-| `partner_status` | Raw partner status string |
-| `description` | Human-readable, mapped |
-| `location` | Nullable |
-| `occurred_at` | Partner timestamp if present, else `now()` |
-| `raw_payload` | Full partner tracking object |
-| `created_at` | Insert time |
-
-Dedup: unique `(order_id, occurred_at, partner_status)` so repeated track polls do not explode the table.
-
-### 7.4 `courier_api_calls`
-
-One row per HTTP attempt (including retries).
-
-| Column | Notes |
-| --- | --- |
-| `order_id` | Nullable for token calls |
-| `courier_partner` | |
-| `operation` | `AUTH` \| `CREATE` \| `TRACK` \| `CANCEL` |
-| `attempt` | 1-based |
-| `request_url` | Path only + host, no credentials |
-| `request_payload` | JSON; secrets redacted |
-| `response_payload` | JSON or `{ "text": "…" }` |
-| `http_status` | Nullable if network error |
-| `error_type` | `TIMEOUT` \| `NETWORK` \| `HTTP` \| null |
-| `duration_ms` | |
-| `request_id` | Our correlation id |
-| `created_at` | |
-
-This plus `orders.last_courier_*` covers PRD “full request/response for audit/debugging”.
-
-### 7.5 Bulk tables
-
-**`bulk_batches`:** `id`, `status`, `total`, `succeeded`, `failed`, `created_at`, `updated_at`, `completed_at`.
-
-**`bulk_batch_items`:** `batch_id`, `order_id` (consumer), `position`, `status` (`QUEUED` \| `SUCCEEDED` \| `FAILED`), `error_code`, `error_message`, `order_uuid` (FK, nullable until insert).
-
-### 7.6 Idempotency algorithm
+### 7.7 Idempotency algorithm
 
 On create (single or bulk item):
 
@@ -557,7 +509,7 @@ v1 uses these partner operations only:
 
 **Out of v1 public API** (adapter may leave unimplemented or private): pincode lookup, print label, NDR RTO/RAD, pay-mode change, ePOD, `global-manifest`. Pincode can be a later `supportsPincode` hook; not required by the PRD.
 
-**Auth cache.** Process-local token with expiry. If the partner does not return `expires_in`, treat TTL as `URBANEBOLT_TOKEN_TTL_SECONDS` (default `3300`). On 401, invalidate cache, `getToken` again, retry the original call once.
+**Auth cache.** Process-local token only (never persisted). UAT `getToken` returns `access_token`, `token_type: "Bearer"`, `expires_in: 86400`, and `expires`. Cache until `expires`, then refresh. On 401, invalidate, `getToken` again, retry the original call once.
 
 **Create mapping (canonical → manifest item):**
 
@@ -788,8 +740,8 @@ Integration (optional): Testcontainers PostgreSQL or docker-compose `postgres` +
 
 ## 20. Open items (resolve during implementation, not blockers)
 
-1. Exact UrbaneBolt manifest/track JSON response keys — confirm with one UAT call; freeze in `urbanebolt/parse.ts` + fixture.
-2. Whether UAT `getToken` returns expiry; until then use `URBANEBOLT_TOKEN_TTL_SECONDS`.
+1. Exact UrbaneBolt **manifest / tracking-pub / pincode / label** success JSON — UAT returned HTTP 500 for those views on 2026-08-19 (`awb=` on tracking-pub crashes; `awbs=` returns `{ status, message, data: [] }`). Parsers stay isolated; freeze fixtures when UAT is healthy.
+2. `global-manifest` is **404** on UAT; extra fields still exist in the collection and are modeled as optional columns.
 3. If reviewers insist on fully synchronous bulk, we can add `?wait=true` later; default remains `202`.
 
 ---
