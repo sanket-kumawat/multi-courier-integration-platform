@@ -1,11 +1,21 @@
 import { registry } from "@multi-courier-integration-platform/couriers";
 import { db } from "@multi-courier-integration-platform/db";
-import { DrizzleOrderStore } from "./drizzle-order-store";
-import { OrderService } from "./order-service";
+import { OrderService } from "./orders";
+import { DrizzleOrderStore } from "./persistence/drizzle";
+import { TrackingService } from "./tracking";
 
-export function createProductionOrderService(): OrderService {
-	return new OrderService(registry, new DrizzleOrderStore(db));
+export function createProductionServices() {
+	const store = new DrizzleOrderStore(db);
+	return {
+		orderService: new OrderService(registry, store),
+		trackingService: new TrackingService(registry, store),
+	};
 }
 
-export { OrderService } from "./order-service";
-export { MemoryOrderStore } from "./order-store";
+export function createProductionOrderService(): OrderService {
+	return createProductionServices().orderService;
+}
+
+export { OrderService } from "./orders";
+export { MemoryOrderStore } from "./persistence/memory";
+export { TrackingService } from "./tracking";

@@ -115,6 +115,22 @@ export const getOrderInputSchema = z.object({
 	order_id: orderIdSchema,
 });
 
+export const trackingEventSchema = z.object({
+	status: z.enum(ORDER_STATUSES),
+	occurred_at: z.string(),
+	description: z.string(),
+	location: z.string().nullable(),
+});
+
+export const trackOrderResponseSchema = z.object({
+	order_id: z.string(),
+	courier_partner: z.string(),
+	awb: z.string(),
+	status: z.enum(ORDER_STATUSES),
+	stale: z.boolean(),
+	history: z.array(trackingEventSchema),
+});
+
 export const orderResponseSchema = z.object({
 	order_id: z.string(),
 	internal_id: z.string(),
@@ -128,3 +144,4 @@ export const orderResponseSchema = z.object({
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type OrderResponse = z.infer<typeof orderResponseSchema>;
+export type TrackOrderResponse = z.infer<typeof trackOrderResponseSchema>;

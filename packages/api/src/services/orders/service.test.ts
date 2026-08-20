@@ -4,11 +4,11 @@ import {
 	UrbaneBoltAdapter,
 } from "@multi-courier-integration-platform/couriers";
 import { describe, expect, it, vi } from "vitest";
-import { createOrderSchema } from "../dto/orders";
-import { validCreateOrder } from "../dto/orders.test";
-import type { AppError } from "../errors";
-import { hashCreatePayload, OrderService } from "./order-service";
-import { MemoryOrderStore } from "./order-store";
+import { createOrderSchema } from "../../dto/orders";
+import { validCreateOrder } from "../../dto/orders.test";
+import type { AppError } from "../../errors";
+import { MemoryOrderStore } from "../persistence/memory";
+import { hashCreatePayload, OrderService } from "./service";
 
 function createService() {
 	const registry = new CourierRegistry();

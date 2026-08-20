@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createOrderSchema, getOrderInputSchema } from "./orders";
+import {
+	createOrderSchema,
+	getOrderInputSchema,
+	trackOrderResponseSchema,
+} from "./orders";
 
 export function validCreateOrder(
 	overrides: Record<string, unknown> = {},
@@ -160,5 +164,33 @@ describe("getOrderInputSchema", () => {
 		expect(getOrderInputSchema.parse({ order_id: "OMS-2026-000142" })).toEqual({
 			order_id: "OMS-2026-000142",
 		});
+	});
+});
+
+describe("trackOrderResponseSchema", () => {
+	it("accepts the documented track payload including stale history", () => {
+		expect(
+			trackOrderResponseSchema.parse({
+				order_id: "OMS-2026-000142",
+				courier_partner: "urbanebolt",
+				awb: "200000001170",
+				status: "IN_TRANSIT",
+				stale: false,
+				history: [
+					{
+						status: "CREATED",
+						occurred_at: "2026-08-19T12:40:11.204Z",
+						description: "Shipment manifested",
+						location: null,
+					},
+					{
+						status: "IN_TRANSIT",
+						occurred_at: "2026-08-19T18:02:00.000Z",
+						description: "Reached hub",
+						location: "BLR",
+					},
+				],
+			}),
+		).toMatchObject({ stale: false, status: "IN_TRANSIT" });
 	});
 });

@@ -6,15 +6,21 @@ import {
 	orders,
 	trackingEvents,
 } from "@multi-courier-integration-platform/db";
-import { eq } from "drizzle-orm";
-import type { CreateOrderInput } from "../dto/orders";
+import { asc, eq } from "drizzle-orm";
+import type { CreateOrderInput } from "../../dto/orders";
 import type {
 	InsertPendingInput,
 	MarkCreatedInput,
 	MarkFailedInput,
 	OrderStore,
-	PersistedOrder,
-} from "./order-store";
+} from "../orders/store";
+import type { PersistedOrder } from "../shared/order";
+import type {
+	ApplyTrackInput,
+	PersistedTrackingEvent,
+	RecordTrackFailureInput,
+	TrackingStore,
+} from "../tracking/store";
 
 function money(value: number): string {
 	return value.toFixed(2);
@@ -42,7 +48,21 @@ function toPersisted(row: typeof orders.$inferSelect): PersistedOrder {
 	};
 }
 
-export class DrizzleOrderStore implements OrderStore {
+function toPersistedEvent(
+	row: typeof trackingEvents.$inferSelect,
+): PersistedTrackingEvent {
+	return {
+		id: row.id,
+		orderId: row.orderId,
+		status: row.status,
+		partnerStatus: row.partnerStatus,
+		description: row.description,
+		location: row.location,
+		occurredAt: row.occurredAt,
+	};
+}
+
+export class DrizzleOrderStore implements OrderStore, TrackingStore {
 	constructor(private readonly db: ReturnType<typeof createDb>) {}
 
 	async insertPending(
@@ -195,6 +215,106 @@ export class DrizzleOrderStore implements OrderStore {
 			});
 
 			return toPersisted(updated);
+		});
+	}
+
+	async listTrackingEvents(orderId: string): Promise<PersistedTrackingEvent[]> {
+		const rows = await this.db.query.trackingEvents.findMany({
+			where: eq(trackingEvents.orderId, orderId),
+			orderBy: [asc(trackingEvents.occurredAt), asc(trackingEvents.createdAt)],
+		});
+		return rows.map(toPersistedEvent);
+	}
+
+	async applyTrack(
+		id: string,
+		input: ApplyTrackInput,
+	): Promise<{ order: PersistedOrder; events: PersistedTrackingEvent[] }> {
+		return this.db.transaction(async (tx) => {
+			const [updated] = await tx
+				.update(orders)
+				.set({
+					status: input.status,
+					lastCourierResponse: input.rawResponse,
+					lastErrorCode: null,
+					updatedAt: new Date(),
+				})
+				.where(eq(orders.id, id))
+				.returning();
+			if (!updated) {
+				throw new Error(`Order '${id}' not found`);
+			}
+
+			if (input.events.length > 0) {
+				await tx
+					.insert(trackingEvents)
+					.values(
+						input.events.map((event) => ({
+							orderId: id,
+							status: event.status,
+							partnerStatus: event.partnerStatus,
+							description: event.description,
+							location: event.location,
+							occurredAt: event.occurredAt,
+							rawPayload: event.raw,
+						})),
+					)
+					.onConflictDoNothing({
+						target: [
+							trackingEvents.orderId,
+							trackingEvents.occurredAt,
+							trackingEvents.partnerStatus,
+						],
+					});
+			}
+
+			await tx.insert(courierApiCalls).values({
+				orderId: id,
+				courierPartner: updated.courierPartner,
+				operation: "TRACK",
+				attempt: 1,
+				requestUrl: `adapter://${updated.courierPartner}/track`,
+				responsePayload: input.rawResponse,
+				httpStatus: 200,
+				durationMs: input.durationMs,
+				requestId: input.requestId,
+			});
+
+			const rows = await tx.query.trackingEvents.findMany({
+				where: eq(trackingEvents.orderId, id),
+				orderBy: [
+					asc(trackingEvents.occurredAt),
+					asc(trackingEvents.createdAt),
+				],
+			});
+			return {
+				order: toPersisted(updated),
+				events: rows.map(toPersistedEvent),
+			};
+		});
+	}
+
+	async recordTrackFailure(
+		id: string,
+		input: RecordTrackFailureInput,
+	): Promise<void> {
+		const existing = await this.db.query.orders.findFirst({
+			where: eq(orders.id, id),
+		});
+		if (!existing) {
+			throw new Error(`Order '${id}' not found`);
+		}
+
+		await this.db.insert(courierApiCalls).values({
+			orderId: id,
+			courierPartner: existing.courierPartner,
+			operation: "TRACK",
+			attempt: 1,
+			requestUrl: `adapter://${existing.courierPartner}/track`,
+			httpStatus: input.httpStatus ?? null,
+			errorType: input.errorCode === "COURIER_UNAVAILABLE" ? "NETWORK" : "HTTP",
+			durationMs: input.durationMs,
+			requestId: input.requestId,
 		});
 	}
 }

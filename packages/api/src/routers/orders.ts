@@ -2,10 +2,12 @@ import {
 	createOrderSchema,
 	getOrderInputSchema,
 	orderResponseSchema,
+	trackOrderResponseSchema,
 } from "../dto/orders";
 import { AppError } from "../errors";
 import { publicProcedure } from "../index";
-import type { OrderService } from "../services/order-service";
+import type { OrderService } from "../services/orders";
+import type { TrackingService } from "../services/tracking";
 
 function requireOrderService(
 	orderService: OrderService | undefined,
@@ -14,6 +16,15 @@ function requireOrderService(
 		throw new AppError("INTERNAL_ERROR", "An unexpected error occurred");
 	}
 	return orderService;
+}
+
+function requireTrackingService(
+	trackingService: TrackingService | undefined,
+): TrackingService {
+	if (!trackingService) {
+		throw new AppError("INTERNAL_ERROR", "An unexpected error occurred");
+	}
+	return trackingService;
 }
 
 export const createOrder = publicProcedure
@@ -47,4 +58,23 @@ export const getOrder = publicProcedure
 	.output(orderResponseSchema)
 	.handler(({ input, context }) =>
 		requireOrderService(context.orderService).get(input.order_id),
+	);
+
+export const trackOrder = publicProcedure
+	.route({
+		method: "GET",
+		path: "/orders/{order_id}/track",
+		summary: "Track order",
+		description:
+			"Pull the latest shipment status from the courier and return append-only history.",
+		tags: ["orders"],
+		successDescription: "Tracking history",
+	})
+	.input(getOrderInputSchema)
+	.output(trackOrderResponseSchema)
+	.handler(({ input, context }) =>
+		requireTrackingService(context.trackingService).track(
+			input.order_id,
+			context,
+		),
 	);

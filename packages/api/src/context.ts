@@ -1,10 +1,12 @@
 import type { Request, Response } from "express";
-import type { OrderService } from "./services/order-service";
+import type { OrderService } from "./services/orders";
+import type { TrackingService } from "./services/tracking";
 
 interface CreateContextOptions {
 	req: Request;
 	res?: Response;
 	orderService?: OrderService;
+	trackingService?: TrackingService;
 }
 
 export function resolveRequestId(req: Request): string {
@@ -19,6 +21,7 @@ export async function createContext({
 	req,
 	res,
 	orderService,
+	trackingService,
 }: CreateContextOptions) {
 	const fromLocals = res?.locals.requestId;
 	const requestId =
@@ -31,6 +34,7 @@ export async function createContext({
 		session: null,
 		requestId,
 		orderService,
+		trackingService,
 	};
 }
 

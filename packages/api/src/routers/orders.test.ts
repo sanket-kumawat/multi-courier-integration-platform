@@ -6,18 +6,21 @@ import { call } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 import { createOrderSchema } from "../dto/orders";
 import { validCreateOrder } from "../dto/orders.test";
-import { OrderService } from "../services/order-service";
-import { MemoryOrderStore } from "../services/order-store";
+import { OrderService } from "../services/orders";
+import { MemoryOrderStore } from "../services/persistence/memory";
+import { TrackingService } from "../services/tracking";
 import { appRouter } from "./index";
 
 function testContext() {
 	const registry = new CourierRegistry();
 	registry.register(new MockCourierAdapter());
+	const store = new MemoryOrderStore();
 	return {
 		auth: null,
 		session: null,
 		requestId: "req_test",
-		orderService: new OrderService(registry, new MemoryOrderStore()),
+		orderService: new OrderService(registry, store),
+		trackingService: new TrackingService(registry, store),
 	};
 }
 
@@ -61,5 +64,34 @@ describe("getOrder", () => {
 			{ context },
 		);
 		expect(fetched).toEqual(created);
+	});
+});
+
+describe("trackOrder", () => {
+	it("returns fresh history for a created mock shipment", async () => {
+		const context = testContext();
+		const body = createOrderSchema.parse(validCreateOrder());
+		const created = await call(appRouter.createOrder, body, { context });
+
+		const tracked = await call(
+			appRouter.trackOrder,
+			{ order_id: created.order_id },
+			{ context },
+		);
+
+		expect(tracked.stale).toBe(false);
+		expect(tracked.awb).toBe(created.awb);
+		expect(tracked.history.length).toBeGreaterThanOrEqual(1);
+		expect(tracked.history[0]?.status).toBe("CREATED");
+	});
+
+	it("maps a missing order to ORDER_NOT_FOUND", async () => {
+		const context = testContext();
+		await expect(
+			call(appRouter.trackOrder, { order_id: "OMS-MISSING" }, { context }),
+		).rejects.toMatchObject({
+			code: "ORDER_NOT_FOUND",
+			status: 404,
+		});
 	});
 });

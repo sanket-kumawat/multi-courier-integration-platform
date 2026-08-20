@@ -118,6 +118,7 @@ describe("publicProcedure error middleware", () => {
 					session: null,
 					requestId: "req_test",
 					orderService: undefined,
+					trackingService: undefined,
 				},
 			}),
 		).rejects.toMatchObject({

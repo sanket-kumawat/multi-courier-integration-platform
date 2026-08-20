@@ -4,17 +4,17 @@ import type {
 	CreateShipmentInput,
 } from "@multi-courier-integration-platform/couriers";
 import {
-	CourierAuthFailedError,
 	CourierError,
 	type CourierRegistry,
-	CourierRejectedError,
-	CourierUnavailableError,
 	UnknownCourierError,
-	UnsupportedServiceError,
 } from "@multi-courier-integration-platform/couriers";
-import type { CreateOrderInput, OrderResponse } from "../dto/orders";
-import { AppError } from "../errors";
-import type { OrderStore, PersistedOrder } from "./order-store";
+import type { CreateOrderInput, OrderResponse } from "../../dto/orders";
+import { AppError } from "../../errors";
+import {
+	httpStatusForCourierError,
+	mapCourierError,
+} from "../shared/courier-errors";
+import type { OrderStore, PersistedOrder } from "./store";
 
 export type OrderServiceContext = {
 	requestId: string;
@@ -169,47 +169,6 @@ function toOrderResponse(order: PersistedOrder): OrderResponse {
 		created_at: order.createdAt.toISOString(),
 		updated_at: order.updatedAt.toISOString(),
 	};
-}
-
-function mapCourierError(error: unknown): AppError {
-	if (error instanceof AppError) {
-		return error;
-	}
-	if (error instanceof CourierRejectedError) {
-		return new AppError("COURIER_REJECTED", error.message);
-	}
-	if (error instanceof CourierAuthFailedError) {
-		return new AppError(
-			"COURIER_AUTH_FAILED",
-			"Failed to authenticate with courier partner",
-		);
-	}
-	if (error instanceof CourierUnavailableError) {
-		return new AppError(
-			"COURIER_UNAVAILABLE",
-			"Courier partner is temporarily unavailable",
-		);
-	}
-	if (error instanceof UnsupportedServiceError) {
-		return new AppError("UNSUPPORTED_SERVICE", error.message);
-	}
-	if (error instanceof CourierError) {
-		return new AppError("INTERNAL_ERROR", "An unexpected error occurred");
-	}
-	return new AppError("INTERNAL_ERROR", "An unexpected error occurred");
-}
-
-function httpStatusForCourierError(error: unknown): number | undefined {
-	if (error instanceof CourierRejectedError) {
-		return 422;
-	}
-	if (
-		error instanceof CourierAuthFailedError ||
-		error instanceof CourierUnavailableError
-	) {
-		return 502;
-	}
-	return undefined;
 }
 
 function stableJson(value: unknown): string {
