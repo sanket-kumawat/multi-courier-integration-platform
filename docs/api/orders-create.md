@@ -17,6 +17,8 @@ POST /api/v1/orders
 | `X-Request-Id` | No       | Client-supplied correlation ID (UUID). Auto-generated if omitted and echoed back in the response header. |
 
 
+
+
 ## Request Body
 
 
@@ -37,14 +39,14 @@ POST /api/v1/orders
 ### `payment` Object
 
 
-| Field               | Type     | Required | Validation            | Description                                                              |
-| ------------------- | -------- | -------- | --------------------- | ------------------------------------------------------------------------ |
-| `mode`              | `string` | Yes      | `"COD"` | `"PREPAID"` | Payment mode.                                                            |
-| `declared_value`    | `number` | Yes      | `> 0`                 | Declared value of goods in INR.                                          |
-| `collectable_value` | `number` | Yes      | `>= 0`                | Amount to collect on delivery. Must be `> 0` for COD, `= 0` for PREPAID. |
-| `invoice_number`    | `string` | Yes      | Non-empty             | Invoice reference number.                                                |
-| `invoice_date`      | `string` | Yes      | `YYYY-MM-DD` format   | Invoice date.                                                            |
-| `invoice_value`     | `number` | Yes      | `> 0`                 | Invoice value in INR.                                                    |
+| Field               | Type     | Required | Validation          | Description                                                              |
+| ------------------- | -------- | -------- | ------------------- | ------------------------------------------------------------------------ |
+| `mode`              | `string` | Yes      | `"COD"`             | `"PREPAID"`                                                              |
+| `declared_value`    | `number` | Yes      | `> 0`               | Declared value of goods in INR.                                          |
+| `collectable_value` | `number` | Yes      | `>= 0`              | Amount to collect on delivery. Must be `> 0` for COD, `= 0` for PREPAID. |
+| `invoice_number`    | `string` | Yes      | Non-empty           | Invoice reference number.                                                |
+| `invoice_date`      | `string` | Yes      | `YYYY-MM-DD` format | Invoice date.                                                            |
+| `invoice_value`     | `number` | Yes      | `> 0`               | Invoice value in INR.                                                    |
 
 
 
@@ -69,17 +71,17 @@ POST /api/v1/orders
 ### Address Object (shared by `shipper`, `consignee`, `return_address`)
 
 
-| Field           | Type     | Required | Validation                                         | Description             |
-| --------------- | -------- | -------- | -------------------------------------------------- | ----------------------- |
-| `name`          | `string` | Yes      | Non-empty                                          | Contact name.           |
-| `phone`         | `string` | Yes      | 10-digit Indian mobile (spaces stripped)           | Contact phone number.   |
-| `email`         | `string` | Yes      | Valid email                                        | Contact email.          |
-| `address_line1` | `string` | Yes      | Non-empty                                          | Street address.         |
-| `address_type`  | `string` | Yes      | `"Home"` | `"Office"` | `"Seller"` | `"Warehouse"` | Address classification. |
-| `city`          | `string` | Yes      | Non-empty                                          | City name.              |
-| `state`         | `string` | Yes      | Non-empty                                          | State name.             |
-| `pincode`       | `string` | Yes      | 6-digit Indian PIN                                 | Postal code.            |
-| `country`       | `string` | Yes      | ISO 3166-1 alpha-2 (e.g. `"IN"`)                   | Country code.           |
+| Field           | Type     | Required | Validation                               | Description           |
+| --------------- | -------- | -------- | ---------------------------------------- | --------------------- |
+| `name`          | `string` | Yes      | Non-empty                                | Contact name.         |
+| `phone`         | `string` | Yes      | 10-digit Indian mobile (spaces stripped) | Contact phone number. |
+| `email`         | `string` | Yes      | Valid email                              | Contact email.        |
+| `address_line1` | `string` | Yes      | Non-empty                                | Street address.       |
+| `address_type`  | `string` | Yes      | `"Home"`                                 | `"Office"`            |
+| `city`          | `string` | Yes      | Non-empty                                | City name.            |
+| `state`         | `string` | Yes      | Non-empty                                | State name.           |
+| `pincode`       | `string` | Yes      | 6-digit Indian PIN                       | Postal code.          |
+| `country`       | `string` | Yes      | ISO 3166-1 alpha-2 (e.g. `"IN"`)         | Country code.         |
 
 
 

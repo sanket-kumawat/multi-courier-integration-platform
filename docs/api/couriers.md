@@ -26,10 +26,7 @@ curl http://localhost:3000/api/v1/couriers
 
 ```json
 {
-  "couriers": [
-    "urbanebolt",
-    "mock"
-  ]
+  "couriers": ["mock"]
 }
 ```
 
@@ -56,6 +53,7 @@ curl http://localhost:3000/api/v1/couriers
 
 - This endpoint reads from the in-memory courier registry. No database or external API calls are made.
 - The list reflects adapters registered at server startup. Adding a new courier requires a code deployment.
+- Phase 1 registers `mock` only. `urbanebolt` appears here once that adapter is registered.
 - When a request to any write endpoint (`POST /orders`, `POST /orders/bulk`, etc.) references an unknown `courier_partner`, the error response includes this list of supported couriers in its `details` field.
 
 ## Related
