@@ -4,5 +4,6 @@ export * from "./bulk";
 export * from "./documents";
 export * from "./enums";
 export * from "./orders";
+export * from "./pincode";
 export * from "./relations";
 export * from "./tracking";

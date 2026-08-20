@@ -1,32 +1,33 @@
 {
-  "name": "@multi-courier-integration-platform/api",
-  "type": "module",
-  "exports": {
-    ".": {
-      "default": "./src/index.ts"
-    },
-    "./*": {
-      "default": "./src/*.ts"
-    }
-  },
-  "scripts": {
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@multi-courier-integration-platform/db": "workspace:*",
-    "@multi-courier-integration-platform/env": "workspace:*",
-    "@orpc/client": "catalog:",
-    "@orpc/openapi": "catalog:",
-    "@orpc/server": "catalog:",
-    "@orpc/zod": "catalog:",
-    "dotenv": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@multi-courier-integration-platform/config": "workspace:*",
-    "@types/express": "catalog:",
-    "typescript": "catalog:",
-    "vitest": "catalog:"
-  }
+	"name": "@multi-courier-integration-platform/api",
+	"type": "module",
+	"exports": {
+		".": {
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"default": "./src/*.ts"
+		}
+	},
+	"scripts": {
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"check-types": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@multi-courier-integration-platform/db": "workspace:*",
+		"@multi-courier-integration-platform/env": "workspace:*",
+		"@orpc/client": "catalog:",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"dotenv": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@multi-courier-integration-platform/config": "workspace:*",
+		"@types/express": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
 }
