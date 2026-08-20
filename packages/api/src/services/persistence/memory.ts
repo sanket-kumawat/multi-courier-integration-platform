@@ -1,3 +1,4 @@
+import type { ApplyCancelInput, CancelStore } from "../cancel/store";
 import type {
 	InsertPendingInput,
 	MarkCreatedInput,
@@ -21,7 +22,9 @@ function eventKey(event: {
 	return `${event.orderId}|${event.occurredAt.toISOString()}|${event.partnerStatus}`;
 }
 
-export class MemoryOrderStore implements OrderStore, TrackingStore {
+export class MemoryOrderStore
+	implements OrderStore, TrackingStore, CancelStore
+{
 	private readonly byOrderId = new Map<string, PersistedOrder>();
 	private readonly events = new Map<string, PersistedTrackingEvent[]>();
 	private readonly eventKeys = new Set<string>();
@@ -101,6 +104,29 @@ export class MemoryOrderStore implements OrderStore, TrackingStore {
 		_id: string,
 		_input: RecordTrackFailureInput,
 	): Promise<void> {}
+
+	async cancelledAt(id: string): Promise<Date | undefined> {
+		const cancelled = (await this.listTrackingEvents(id)).find(
+			(event) => event.status === "CANCELLED",
+		);
+		return cancelled?.occurredAt;
+	}
+
+	async applyCancel(
+		id: string,
+		input: ApplyCancelInput,
+	): Promise<{ order: PersistedOrder; cancelledAt: Date }> {
+		const order = this.patch(id, { status: "CANCELLED" });
+		this.appendEvent(id, {
+			status: "CANCELLED",
+			partnerStatus: input.partnerStatus,
+			description: "Shipment cancelled",
+			location: null,
+			occurredAt: input.cancelledAt,
+			raw: input.rawResponse ?? { status: "CANCELLED" },
+		});
+		return { order, cancelledAt: input.cancelledAt };
+	}
 
 	private appendEvent(orderId: string, input: NewTrackingEvent): void {
 		const key = eventKey({

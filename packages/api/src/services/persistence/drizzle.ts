@@ -4,10 +4,12 @@ import {
 	orderPackages,
 	orderParties,
 	orders,
+	shipmentActions,
 	trackingEvents,
 } from "@multi-courier-integration-platform/db";
 import { asc, eq } from "drizzle-orm";
 import type { CreateOrderInput } from "../../dto/orders";
+import type { ApplyCancelInput, CancelStore } from "../cancel/store";
 import type {
 	InsertPendingInput,
 	MarkCreatedInput,
@@ -62,7 +64,9 @@ function toPersistedEvent(
 	};
 }
 
-export class DrizzleOrderStore implements OrderStore, TrackingStore {
+export class DrizzleOrderStore
+	implements OrderStore, TrackingStore, CancelStore
+{
 	constructor(private readonly db: ReturnType<typeof createDb>) {}
 
 	async insertPending(
@@ -315,6 +319,76 @@ export class DrizzleOrderStore implements OrderStore, TrackingStore {
 			errorType: input.errorCode === "COURIER_UNAVAILABLE" ? "NETWORK" : "HTTP",
 			durationMs: input.durationMs,
 			requestId: input.requestId,
+		});
+	}
+
+	async cancelledAt(id: string): Promise<Date | undefined> {
+		const events = await this.listTrackingEvents(id);
+		return events.find((event) => event.status === "CANCELLED")?.occurredAt;
+	}
+
+	async applyCancel(
+		id: string,
+		input: ApplyCancelInput,
+	): Promise<{ order: PersistedOrder; cancelledAt: Date }> {
+		return this.db.transaction(async (tx) => {
+			const [updated] = await tx
+				.update(orders)
+				.set({
+					status: "CANCELLED",
+					lastCourierRequest: input.rawRequest,
+					lastCourierResponse: input.rawResponse,
+					lastErrorCode: null,
+					updatedAt: input.cancelledAt,
+				})
+				.where(eq(orders.id, id))
+				.returning();
+			if (!updated) {
+				throw new Error(`Order '${id}' not found`);
+			}
+
+			await tx
+				.insert(trackingEvents)
+				.values({
+					orderId: id,
+					status: "CANCELLED",
+					partnerStatus: input.partnerStatus,
+					description: "Shipment cancelled",
+					occurredAt: input.cancelledAt,
+					rawPayload: input.rawResponse ?? { status: "CANCELLED" },
+				})
+				.onConflictDoNothing({
+					target: [
+						trackingEvents.orderId,
+						trackingEvents.occurredAt,
+						trackingEvents.partnerStatus,
+					],
+				});
+
+			await tx.insert(shipmentActions).values({
+				orderId: id,
+				type: "CANCEL",
+				succeeded: true,
+				requestPayload: input.rawRequest,
+				responsePayload: input.rawResponse,
+			});
+
+			if (input.calledCourier) {
+				await tx.insert(courierApiCalls).values({
+					orderId: id,
+					courierPartner: updated.courierPartner,
+					operation: "CANCEL",
+					attempt: 1,
+					requestUrl: `adapter://${updated.courierPartner}/cancel`,
+					requestPayload: input.rawRequest,
+					responsePayload: input.rawResponse,
+					httpStatus: 200,
+					durationMs: input.durationMs,
+					requestId: input.requestId,
+				});
+			}
+
+			return { order: toPersisted(updated), cancelledAt: input.cancelledAt };
 		});
 	}
 }

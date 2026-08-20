@@ -22,7 +22,8 @@ initLogger({
 });
 
 const app = express();
-const { orderService, trackingService } = createProductionServices();
+const { orderService, trackingService, cancelService } =
+	createProductionServices();
 
 app.use(
 	evlog({
@@ -81,6 +82,7 @@ app.use(async (req, res, next) => {
 		res,
 		orderService,
 		trackingService,
+		cancelService,
 	});
 
 	const rpcResult = await rpcHandler.handle(req, res, {

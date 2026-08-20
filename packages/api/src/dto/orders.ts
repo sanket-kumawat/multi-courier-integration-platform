@@ -131,6 +131,12 @@ export const trackOrderResponseSchema = z.object({
 	history: z.array(trackingEventSchema),
 });
 
+export const cancelOrderResponseSchema = z.object({
+	order_id: z.string(),
+	status: z.literal("CANCELLED"),
+	cancelled_at: z.string(),
+});
+
 export const orderResponseSchema = z.object({
 	order_id: z.string(),
 	internal_id: z.string(),
@@ -145,3 +151,4 @@ export const orderResponseSchema = z.object({
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
 export type OrderResponse = z.infer<typeof orderResponseSchema>;
 export type TrackOrderResponse = z.infer<typeof trackOrderResponseSchema>;
+export type CancelOrderResponse = z.infer<typeof cancelOrderResponseSchema>;

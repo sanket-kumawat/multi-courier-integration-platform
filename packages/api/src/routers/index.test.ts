@@ -9,6 +9,7 @@ const testContext = {
 	requestId: "req_test",
 	orderService: undefined,
 	trackingService: undefined,
+	cancelService: undefined,
 };
 
 describe("healthCheck", () => {

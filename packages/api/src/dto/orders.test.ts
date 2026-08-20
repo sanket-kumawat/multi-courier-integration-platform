@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	cancelOrderResponseSchema,
 	createOrderSchema,
 	getOrderInputSchema,
 	trackOrderResponseSchema,
@@ -192,5 +193,21 @@ describe("trackOrderResponseSchema", () => {
 				],
 			}),
 		).toMatchObject({ stale: false, status: "IN_TRANSIT" });
+	});
+});
+
+describe("cancelOrderResponseSchema", () => {
+	it("accepts the documented cancel payload", () => {
+		expect(
+			cancelOrderResponseSchema.parse({
+				order_id: "OMS-2026-000142",
+				status: "CANCELLED",
+				cancelled_at: "2026-08-19T13:10:00.000Z",
+			}),
+		).toEqual({
+			order_id: "OMS-2026-000142",
+			status: "CANCELLED",
+			cancelled_at: "2026-08-19T13:10:00.000Z",
+		});
 	});
 });

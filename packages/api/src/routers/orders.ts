@@ -1,4 +1,5 @@
 import {
+	cancelOrderResponseSchema,
 	createOrderSchema,
 	getOrderInputSchema,
 	orderResponseSchema,
@@ -6,6 +7,7 @@ import {
 } from "../dto/orders";
 import { AppError } from "../errors";
 import { publicProcedure } from "../index";
+import type { CancelService } from "../services/cancel";
 import type { OrderService } from "../services/orders";
 import type { TrackingService } from "../services/tracking";
 
@@ -25,6 +27,15 @@ function requireTrackingService(
 		throw new AppError("INTERNAL_ERROR", "An unexpected error occurred");
 	}
 	return trackingService;
+}
+
+function requireCancelService(
+	cancelService: CancelService | undefined,
+): CancelService {
+	if (!cancelService) {
+		throw new AppError("INTERNAL_ERROR", "An unexpected error occurred");
+	}
+	return cancelService;
 }
 
 export const createOrder = publicProcedure
@@ -77,4 +88,20 @@ export const trackOrder = publicProcedure
 			input.order_id,
 			context,
 		),
+	);
+
+export const cancelOrder = publicProcedure
+	.route({
+		method: "POST",
+		path: "/orders/{order_id}/cancel",
+		summary: "Cancel order",
+		description:
+			"Cancel a shipment before pickup. PENDING and FAILED cancel locally; CREATED calls the courier.",
+		tags: ["orders"],
+		successDescription: "Shipment cancelled",
+	})
+	.input(getOrderInputSchema)
+	.output(cancelOrderResponseSchema)
+	.handler(({ input, context }) =>
+		requireCancelService(context.cancelService).cancel(input.order_id, context),
 	);
