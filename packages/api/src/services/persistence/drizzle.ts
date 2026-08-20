@@ -1,4 +1,8 @@
 import {
+	redactUrl,
+	redactValue,
+} from "@multi-courier-integration-platform/couriers";
+import {
 	bulkBatches,
 	bulkBatchItems,
 	courierApiCalls,
@@ -27,6 +31,10 @@ import type {
 	MarkFailedInput,
 	OrderStore,
 } from "../orders/store";
+import type {
+	CourierCallInput,
+	CourierCallStore,
+} from "../shared/courier-calls";
 import type { PersistedOrder } from "../shared/order";
 import type {
 	ApplyTrackInput,
@@ -102,7 +110,7 @@ function toPersistedEvent(
 }
 
 export class DrizzleOrderStore
-	implements OrderStore, TrackingStore, CancelStore, BulkStore
+	implements OrderStore, TrackingStore, CancelStore, BulkStore, CourierCallStore
 {
 	constructor(private readonly db: ReturnType<typeof createDb>) {}
 
@@ -130,8 +138,8 @@ export class DrizzleOrderStore
 					status: input.status,
 					awb: input.awb,
 					courierShipmentId: input.courierShipmentId,
-					lastCourierRequest: input.rawRequest,
-					lastCourierResponse: input.rawResponse,
+					lastCourierRequest: redactValue(input.rawRequest),
+					lastCourierResponse: redactValue(input.rawResponse),
 					lastErrorCode: null,
 					updatedAt: new Date(),
 				})
@@ -156,8 +164,8 @@ export class DrizzleOrderStore
 				operation: "CREATE",
 				attempt: 1,
 				requestUrl: `adapter://${updated.courierPartner}/create`,
-				requestPayload: input.rawRequest,
-				responsePayload: input.rawResponse,
+				requestPayload: redactValue(input.rawRequest),
+				responsePayload: redactValue(input.rawResponse),
 				httpStatus: 200,
 				durationMs: input.durationMs,
 				requestId: input.requestId,
@@ -176,8 +184,8 @@ export class DrizzleOrderStore
 				.update(orders)
 				.set({
 					status: "FAILED",
-					lastCourierRequest: input.rawRequest,
-					lastCourierResponse: input.rawResponse,
+					lastCourierRequest: redactValue(input.rawRequest),
+					lastCourierResponse: redactValue(input.rawResponse),
 					lastErrorCode: input.errorCode,
 					updatedAt: new Date(),
 				})
@@ -193,8 +201,8 @@ export class DrizzleOrderStore
 				operation: "CREATE",
 				attempt: 1,
 				requestUrl: `adapter://${updated.courierPartner}/create`,
-				requestPayload: input.rawRequest,
-				responsePayload: input.rawResponse,
+				requestPayload: redactValue(input.rawRequest),
+				responsePayload: redactValue(input.rawResponse),
 				httpStatus: input.httpStatus ?? null,
 				errorType:
 					input.errorCode === "COURIER_UNAVAILABLE" ? "NETWORK" : "HTTP",
@@ -223,7 +231,7 @@ export class DrizzleOrderStore
 				.update(orders)
 				.set({
 					status: input.status,
-					lastCourierResponse: input.rawResponse,
+					lastCourierResponse: redactValue(input.rawResponse),
 					lastErrorCode: null,
 					updatedAt: new Date(),
 				})
@@ -262,7 +270,7 @@ export class DrizzleOrderStore
 				operation: "TRACK",
 				attempt: 1,
 				requestUrl: `adapter://${updated.courierPartner}/track`,
-				responsePayload: input.rawResponse,
+				responsePayload: redactValue(input.rawResponse),
 				httpStatus: 200,
 				durationMs: input.durationMs,
 				requestId: input.requestId,
@@ -320,8 +328,8 @@ export class DrizzleOrderStore
 				.update(orders)
 				.set({
 					status: "CANCELLED",
-					lastCourierRequest: input.rawRequest,
-					lastCourierResponse: input.rawResponse,
+					lastCourierRequest: redactValue(input.rawRequest),
+					lastCourierResponse: redactValue(input.rawResponse),
 					lastErrorCode: null,
 					updatedAt: input.cancelledAt,
 				})
@@ -353,8 +361,8 @@ export class DrizzleOrderStore
 				orderId: id,
 				type: "CANCEL",
 				succeeded: true,
-				requestPayload: input.rawRequest,
-				responsePayload: input.rawResponse,
+				requestPayload: redactValue(input.rawRequest),
+				responsePayload: redactValue(input.rawResponse),
 			});
 
 			if (input.calledCourier) {
@@ -364,8 +372,8 @@ export class DrizzleOrderStore
 					operation: "CANCEL",
 					attempt: 1,
 					requestUrl: `adapter://${updated.courierPartner}/cancel`,
-					requestPayload: input.rawRequest,
-					responsePayload: input.rawResponse,
+					requestPayload: redactValue(input.rawRequest),
+					responsePayload: redactValue(input.rawResponse),
 					httpStatus: 200,
 					durationMs: input.durationMs,
 					requestId: input.requestId,
@@ -574,6 +582,22 @@ export class DrizzleOrderStore
 					})
 					.where(eq(bulkBatches.id, batch.id));
 			}
+		});
+	}
+
+	async appendCourierCall(input: CourierCallInput): Promise<void> {
+		await this.db.insert(courierApiCalls).values({
+			orderId: input.orderUuid ?? null,
+			courierPartner: input.courierPartner,
+			operation: input.operation,
+			attempt: input.attempt,
+			requestUrl: redactUrl(input.requestUrl),
+			requestPayload: redactValue(input.requestPayload),
+			responsePayload: redactValue(input.responsePayload),
+			httpStatus: input.httpStatus ?? null,
+			errorType: input.errorType ?? null,
+			durationMs: input.durationMs,
+			requestId: input.requestId,
 		});
 	}
 

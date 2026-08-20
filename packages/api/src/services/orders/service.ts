@@ -10,6 +10,12 @@ import {
 } from "@multi-courier-integration-platform/couriers";
 import type { CreateOrderInput, OrderResponse } from "../../dto/orders";
 import { AppError } from "../../errors";
+import type { RequestLog } from "../../observability";
+import { adapterLoggerFrom, WIDE_EVENTS } from "../../observability";
+import {
+	type CourierCallStore,
+	toCourierCallInput,
+} from "../shared/courier-calls";
 import {
 	httpStatusForCourierError,
 	mapCourierError,
@@ -18,18 +24,26 @@ import type { OrderStore, PersistedOrder } from "./store";
 
 export type OrderServiceContext = {
 	requestId: string;
+	log?: RequestLog;
 };
 
 export class OrderService {
 	constructor(
 		private readonly registry: CourierRegistry,
-		private readonly db: OrderStore,
+		private readonly db: OrderStore & CourierCallStore,
 	) {}
 
 	async create(
 		input: CreateOrderInput,
 		ctx: OrderServiceContext,
 	): Promise<OrderResponse> {
+		ctx.log?.set({
+			event: WIDE_EVENTS.ORDER_CREATE,
+			request_id: ctx.requestId,
+			order_id: input.order_id,
+			courier_partner: input.courier_partner,
+			operation: "CREATE",
+		});
 		const adapter = this.resolveAdapter(input.courier_partner);
 		const payloadHash = hashCreatePayload(input);
 		const { order, inserted } = await this.db.insertPending({
@@ -87,6 +101,11 @@ export class OrderService {
 			const result = await adapter.createShipment(toShipmentInput(input), {
 				requestId: ctx.requestId,
 				orderId: input.order_id,
+				logger: adapterLoggerFrom(ctx.log),
+				recordHttpCall: (call) =>
+					this.db.appendCourierCall(
+						toCourierCallInput(adapter.id, ctx.requestId, order.id, call),
+					),
 			});
 			const updated = await this.db.markCreated(order.id, {
 				awb: result.awb,

@@ -1,5 +1,5 @@
 import { call, ORPCError, ValidationError } from "@orpc/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	APP_ERROR_HTTP_STATUS,
 	AppError,
@@ -121,6 +121,8 @@ describe("publicProcedure error middleware", () => {
 					trackingService: undefined,
 					cancelService: undefined,
 					bulkOrderService: undefined,
+					log: undefined,
+					courierRegistry: undefined,
 				},
 			}),
 		).rejects.toMatchObject({
@@ -129,6 +131,42 @@ describe("publicProcedure error middleware", () => {
 			message: "Order 'OMS-1' not found",
 			data: { request_id: "req_test", details: [] },
 		});
+	});
+
+	it("logs INTERNAL_ERROR with the original error and omits it from the envelope", async () => {
+		const log = { set: vi.fn(), error: vi.fn() };
+		const boom = new Error("Bearer leaked-token");
+		const failing = publicProcedure.handler(() => {
+			throw boom;
+		});
+
+		await expect(
+			call(failing, undefined, {
+				context: {
+					auth: null,
+					session: null,
+					requestId: "req_test",
+					log,
+					orderService: undefined,
+					trackingService: undefined,
+					cancelService: undefined,
+					bulkOrderService: undefined,
+					courierRegistry: undefined,
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "INTERNAL_ERROR",
+			status: 500,
+			message: "An unexpected error occurred",
+		});
+
+		expect(log.error).toHaveBeenCalledWith(
+			boom,
+			expect.objectContaining({
+				request_id: "req_test",
+				code: "INTERNAL_ERROR",
+			}),
+		);
 	});
 });
 

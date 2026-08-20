@@ -143,6 +143,25 @@ describe("UrbaneBoltAdapter", () => {
 		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
+	it("records AUTH audit with redacted credentials", async () => {
+		const fetchMock = routeFetch({});
+		const adapter = createAdapter(fetchMock);
+		const recordHttpCall = vi.fn();
+		await adapter.createShipment(sampleInput(), {
+			...ctx,
+			recordHttpCall,
+		});
+
+		expect(recordHttpCall).toHaveBeenCalledWith(
+			expect.objectContaining({
+				operation: "AUTH",
+				httpStatus: 200,
+			}),
+		);
+		expect(JSON.stringify(recordHttpCall.mock.calls)).not.toContain('"pass"');
+		expect(JSON.stringify(recordHttpCall.mock.calls)).toContain("[REDACTED]");
+	});
+
 	it("refreshes the token on 401 and retries the original request once", async () => {
 		let manifestCalls = 0;
 		const fetchMock = routeFetch({

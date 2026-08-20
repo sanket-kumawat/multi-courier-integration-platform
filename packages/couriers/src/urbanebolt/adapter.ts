@@ -89,6 +89,7 @@ export class UrbaneBoltAdapter implements CourierAdapter {
 				url: `${this.baseUrl()}/api/v1/services/manifest/`,
 				method: "POST",
 				body: payload,
+				operation: "CREATE",
 			},
 			ctx,
 		);
@@ -105,7 +106,10 @@ export class UrbaneBoltAdapter implements CourierAdapter {
 
 	async track(input: TrackInput, ctx: AdapterContext): Promise<TrackResult> {
 		const url = `${this.baseUrl()}/api/v1/services/tracking-pub/?awb=${encodeURIComponent(input.awb)}`;
-		const result = await this.authorizedRequest({ url, method: "GET" }, ctx);
+		const result = await this.authorizedRequest(
+			{ url, method: "GET", operation: "TRACK" },
+			ctx,
+		);
 		throwIfRejected(result.status, result.body);
 		const parsed = parseTrackResult(result.body, this.now());
 		return {
@@ -122,6 +126,7 @@ export class UrbaneBoltAdapter implements CourierAdapter {
 				url: `${this.baseUrl()}/api/v1/services/cancel/`,
 				method: "POST",
 				body: rawRequest,
+				operation: "CANCEL",
 			},
 			ctx,
 		);
@@ -177,12 +182,25 @@ export class UrbaneBoltAdapter implements CourierAdapter {
 		return { username, password };
 	}
 
-	private async authenticate(): Promise<string> {
+	private async authenticate(ctx: AdapterContext): Promise<string> {
 		const { username, password } = this.credentials();
+		const started = Date.now();
+		const url = `${this.baseUrl()}/api/v1/auth/getToken/`;
 		const result = await this.http.request({
-			url: `${this.baseUrl()}/api/v1/auth/getToken/`,
+			url,
 			method: "POST",
 			body: { username, password },
+			meta: this.httpMeta(ctx, "AUTH"),
+		});
+		await ctx.recordHttpCall?.({
+			operation: "AUTH",
+			attempt: 1,
+			requestUrl: result.rawRequest.url,
+			requestPayload: result.rawRequest,
+			responsePayload: result.rawResponse,
+			httpStatus: result.status,
+			errorType: result.status >= 400 ? "HTTP" : undefined,
+			durationMs: Date.now() - started,
 		});
 		if (result.status >= 400) {
 			throw new CourierAuthFailedError();
@@ -196,8 +214,8 @@ export class UrbaneBoltAdapter implements CourierAdapter {
 		return parsed.accessToken;
 	}
 
-	private async ensureToken(): Promise<string> {
-		return this.cache.get() ?? this.authenticate();
+	private async ensureToken(ctx: AdapterContext): Promise<string> {
+		return this.cache.get() ?? this.authenticate(ctx);
 	}
 
 	private async authorizedRequest(
@@ -205,21 +223,42 @@ export class UrbaneBoltAdapter implements CourierAdapter {
 			url: string;
 			method: string;
 			body?: unknown;
+			operation: "CREATE" | "TRACK" | "CANCEL";
 		},
 		ctx: AdapterContext,
 	): Promise<CourierHttpResult> {
-		const token = await this.ensureToken();
+		const token = await this.ensureToken(ctx);
 		return this.http.request({
 			url: request.url,
 			method: request.method,
 			body: request.body,
 			signal: ctx.signal,
 			headers: { Authorization: `Bearer ${token}` },
+			meta: this.httpMeta(ctx, request.operation),
 			onUnauthorized: async () => {
 				this.cache.clear();
-				const refreshed = await this.authenticate();
+				const refreshed = await this.authenticate(ctx);
 				return { Authorization: `Bearer ${refreshed}` };
 			},
 		});
+	}
+
+	private httpMeta(
+		ctx: AdapterContext,
+		operation: string,
+	): {
+		requestId: string;
+		orderId?: string;
+		courierPartner: string;
+		operation: string;
+		logger?: AdapterContext["logger"];
+	} {
+		return {
+			requestId: ctx.requestId,
+			orderId: ctx.orderId,
+			courierPartner: this.id,
+			operation,
+			logger: ctx.logger,
+		};
 	}
 }

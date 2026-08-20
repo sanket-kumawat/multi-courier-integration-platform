@@ -15,6 +15,7 @@ export function createProductionServices() {
 		trackingService: new TrackingService(registry, store),
 		cancelService: new CancelService(registry, store),
 		bulkOrderService: new BulkOrderService(registry, store),
+		courierRegistry: registry,
 		bulkWorker: new BulkWorker({
 			store,
 			orderService,

@@ -96,11 +96,23 @@ export type AdapterLogger = {
 	error(message: string, fields?: Record<string, unknown>): void;
 };
 
+export type AdapterHttpCall = {
+	operation: string;
+	attempt: number;
+	requestUrl: string;
+	requestPayload: unknown;
+	responsePayload: unknown;
+	httpStatus?: number;
+	errorType?: string;
+	durationMs: number;
+};
+
 export type AdapterContext = {
 	requestId: string;
 	orderId?: string;
 	signal?: AbortSignal;
 	logger?: AdapterLogger;
+	recordHttpCall?: (call: AdapterHttpCall) => void | Promise<void>;
 };
 
 export interface CourierAdapter {

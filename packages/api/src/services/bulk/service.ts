@@ -5,12 +5,15 @@ import {
 import type { BatchResponse, BulkAccepted } from "../../dto/batches";
 import type { BulkCreateInput, CreateOrderInput } from "../../dto/orders";
 import { AppError } from "../../errors";
+import type { RequestLog } from "../../observability";
+import { WIDE_EVENTS } from "../../observability";
 import { hashCreatePayload } from "../orders";
 import type { BulkStore, PersistedBatchItem } from "./store";
 import { assertBulkSize, assertUniqueOrderIds } from "./validate";
 
 export type BulkOrderServiceContext = {
 	requestId: string;
+	log?: RequestLog;
 };
 
 export class BulkOrderService {
@@ -21,11 +24,18 @@ export class BulkOrderService {
 
 	async enqueue(
 		input: BulkCreateInput,
-		_ctx: BulkOrderServiceContext,
+		ctx: BulkOrderServiceContext,
 	): Promise<BulkAccepted> {
 		assertBulkSize(input.orders.length);
 		assertUniqueOrderIds(input.orders);
 		this.assertKnownCouriers(input.orders);
+
+		ctx.log?.set({
+			event: WIDE_EVENTS.ORDER_BULK_ACCEPT,
+			request_id: ctx.requestId,
+			operation: "CREATE",
+			accepted: input.orders.length,
+		});
 
 		const batch = await this.db.enqueue({
 			orders: input.orders.map((order) => ({

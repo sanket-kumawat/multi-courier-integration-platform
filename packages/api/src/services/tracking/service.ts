@@ -9,6 +9,12 @@ import {
 } from "@multi-courier-integration-platform/couriers";
 import type { TrackOrderResponse } from "../../dto/orders";
 import { AppError } from "../../errors";
+import type { RequestLog } from "../../observability";
+import { adapterLoggerFrom, WIDE_EVENTS } from "../../observability";
+import {
+	type CourierCallStore,
+	toCourierCallInput,
+} from "../shared/courier-calls";
 import { mapCourierError } from "../shared/courier-errors";
 import { nextCanonicalStatus } from "./status";
 import type {
@@ -20,12 +26,13 @@ import type {
 
 export type TrackingServiceContext = {
 	requestId: string;
+	log?: RequestLog;
 };
 
 export class TrackingService {
 	constructor(
 		private readonly registry: CourierRegistry,
-		private readonly db: TrackingStore,
+		private readonly db: TrackingStore & CourierCallStore,
 	) {}
 
 	async track(
@@ -36,6 +43,13 @@ export class TrackingService {
 		if (!order) {
 			throw new AppError("ORDER_NOT_FOUND", `Order '${orderId}' not found`);
 		}
+		ctx.log?.set({
+			event: WIDE_EVENTS.ORDER_TRACK,
+			request_id: ctx.requestId,
+			order_id: order.orderId,
+			courier_partner: order.courierPartner,
+			operation: "TRACK",
+		});
 		if (!order.awb) {
 			throw new AppError(
 				"COURIER_UNAVAILABLE",
@@ -51,7 +65,20 @@ export class TrackingService {
 					awb: order.awb,
 					courierShipmentId: order.courierShipmentId ?? undefined,
 				},
-				{ requestId: ctx.requestId, orderId: order.orderId },
+				{
+					requestId: ctx.requestId,
+					orderId: order.orderId,
+					logger: adapterLoggerFrom(ctx.log),
+					recordHttpCall: (call) =>
+						this.db.appendCourierCall(
+							toCourierCallInput(
+								order.courierPartner,
+								ctx.requestId,
+								order.id,
+								call,
+							),
+						),
+				},
 			);
 			const incoming = toNewEvents(
 				adapter,

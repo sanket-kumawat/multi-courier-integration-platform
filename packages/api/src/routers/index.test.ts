@@ -7,10 +7,12 @@ const testContext = {
 	auth: null,
 	session: null,
 	requestId: "req_test",
+	log: undefined,
 	orderService: undefined,
 	trackingService: undefined,
 	cancelService: undefined,
 	bulkOrderService: undefined,
+	courierRegistry: undefined,
 };
 
 describe("healthCheck", () => {

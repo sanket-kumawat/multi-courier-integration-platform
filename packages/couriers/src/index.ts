@@ -8,6 +8,7 @@ registry.register(new UrbaneBoltAdapter());
 
 export type {
 	AdapterContext,
+	AdapterHttpCall,
 	AdapterLogger,
 	Address,
 	CancelInput,
@@ -29,6 +30,13 @@ export {
 	UnknownCourierError,
 	UnsupportedServiceError,
 } from "./errors";
+export {
+	courierRequest,
+	createCourierHttp,
+	redactHeaders,
+	redactUrl,
+	redactValue,
+} from "./http";
 export type { MockCourierOptions } from "./mock/adapter";
 export { MockCourierAdapter } from "./mock/adapter";
 export { CourierRegistry } from "./registry";

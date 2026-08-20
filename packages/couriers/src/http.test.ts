@@ -167,4 +167,44 @@ describe("courierRequest", () => {
 		expect(onUnauthorized).toHaveBeenCalledTimes(1);
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
+
+	it("emits courier.http on each attempt without leaking tokens", async () => {
+		const fetchMock = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(jsonResponse(503, { error: "down" }))
+			.mockResolvedValueOnce(jsonResponse(200, { awb: "1" }));
+		const info = vi.fn();
+
+		await courierRequest(
+			{
+				url: "https://partner.test/manifest",
+				method: "POST",
+				headers: { Authorization: "Bearer secret-token" },
+				meta: {
+					requestId: "req_1",
+					orderId: "OMS-1",
+					courierPartner: "urbanebolt",
+					operation: "CREATE",
+					logger: { info, warn: vi.fn(), error: vi.fn() },
+				},
+			},
+			{ ...fastConfig, fetch: fetchMock },
+		);
+
+		expect(info).toHaveBeenCalledTimes(2);
+		expect(info).toHaveBeenNthCalledWith(
+			1,
+			"courier.http",
+			expect.objectContaining({
+				request_id: "req_1",
+				order_id: "OMS-1",
+				courier_partner: "urbanebolt",
+				operation: "CREATE",
+				attempt: 1,
+				http_status: 503,
+				error_type: "HTTP",
+			}),
+		);
+		expect(JSON.stringify(info.mock.calls)).not.toContain("secret-token");
+	});
 });

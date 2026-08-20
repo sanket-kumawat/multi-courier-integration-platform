@@ -15,6 +15,10 @@ import type {
 	MarkFailedInput,
 	OrderStore,
 } from "../orders/store";
+import type {
+	CourierCallInput,
+	CourierCallStore,
+} from "../shared/courier-calls";
 import type { PersistedOrder } from "../shared/order";
 import type {
 	ApplyTrackInput,
@@ -47,7 +51,7 @@ function eventKey(event: {
 }
 
 export class MemoryOrderStore
-	implements OrderStore, TrackingStore, CancelStore, BulkStore
+	implements OrderStore, TrackingStore, CancelStore, BulkStore, CourierCallStore
 {
 	private readonly byOrderId = new Map<string, PersistedOrder>();
 	private readonly byInternalId = new Map<string, PersistedOrder>();
@@ -55,6 +59,7 @@ export class MemoryOrderStore
 	private readonly eventKeys = new Set<string>();
 	private readonly batches = new Map<string, PersistedBatch>();
 	private readonly batchItems = new Map<string, MemoryBatchItem>();
+	private readonly courierCalls: CourierCallInput[] = [];
 	private writeLock = Promise.resolve();
 
 	async insertPending(
@@ -194,6 +199,14 @@ export class MemoryOrderStore
 		this.byOrderId.set(updated.orderId, updated);
 		this.byInternalId.set(updated.id, updated);
 		return updated;
+	}
+
+	async appendCourierCall(input: CourierCallInput): Promise<void> {
+		this.courierCalls.push(input);
+	}
+
+	recordedCourierCalls(): CourierCallInput[] {
+		return [...this.courierCalls];
 	}
 
 	async enqueue(input: EnqueueBulkInput): Promise<PersistedBatch> {

@@ -1,4 +1,6 @@
+import type { CourierRegistry } from "@multi-courier-integration-platform/couriers";
 import type { Request, Response } from "express";
+import type { RequestLog } from "./observability";
 import type { BulkOrderService } from "./services/bulk";
 import type { CancelService } from "./services/cancel";
 import type { OrderService } from "./services/orders";
@@ -11,6 +13,7 @@ interface CreateContextOptions {
 	trackingService?: TrackingService;
 	cancelService?: CancelService;
 	bulkOrderService?: BulkOrderService;
+	courierRegistry?: CourierRegistry;
 }
 
 export function resolveRequestId(req: Request): string {
@@ -28,6 +31,7 @@ export async function createContext({
 	trackingService,
 	cancelService,
 	bulkOrderService,
+	courierRegistry,
 }: CreateContextOptions) {
 	const fromLocals = res?.locals.requestId;
 	const requestId =
@@ -39,11 +43,21 @@ export async function createContext({
 		auth: null,
 		session: null,
 		requestId,
+		log: readRequestLog(req),
 		orderService,
 		trackingService,
 		cancelService,
 		bulkOrderService,
+		courierRegistry,
 	};
+}
+
+function readRequestLog(req: Request): RequestLog | undefined {
+	const log = (req as Request & { log?: RequestLog }).log;
+	if (log && typeof log.set === "function") {
+		return log;
+	}
+	return undefined;
 }
 
 export type Context = Awaited<ReturnType<typeof createContext>>;

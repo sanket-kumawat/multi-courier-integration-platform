@@ -21,10 +21,12 @@ function testContext() {
 		auth: null,
 		session: null,
 		requestId: "req_test",
+		log: undefined,
 		orderService: new OrderService(registry, store),
 		trackingService: new TrackingService(registry, store),
 		cancelService: new CancelService(registry, store),
 		bulkOrderService: new BulkOrderService(registry, store),
+		courierRegistry: registry,
 	};
 }
 

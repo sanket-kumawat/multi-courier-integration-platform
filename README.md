@@ -1,124 +1,89 @@
-# multi-courier-integration-platform
+# Multi-Courier Integration Platform
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, Express, ORPC, and more.
+Courier-agnostic backend for creating, tracking, and cancelling shipments. Consumers pass `courier_partner`; they never see partner payload shapes. The first live adapter is **UrbaneBolt**. A **mock** adapter is registered for tests and local demos.
 
-## Features
+REST lives at `/api/v1`. The web app can use typed `/rpc`. Both call the same services.
 
-- **TypeScript** - For type safety and improved developer experience
-- **TanStack Router** - File-based routing with full type safety
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Express** - Fast, unopinionated web framework
-- **oRPC** - End-to-end type-safe APIs with OpenAPI integration
-- **Node.js** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Turborepo** - Optimized monorepo build system
-- **Biome** - Linting and formatting
-- **Husky** - Git hooks for code quality
-
-## Getting Started
-
-First, install the dependencies:
+## Quick start
 
 ```bash
 pnpm install
+pnpm run db:start          # docker compose postgres
+cp apps/server/.env.example apps/server/.env
+# set DATABASE_URL (default in the example matches compose)
+pnpm run db:migrate
+pnpm run dev               # API :3000, web :3001
 ```
 
-## Database Setup
+Health: `GET http://localhost:3000/api/v1/health`  
+OpenAPI UI: `http://localhost:3000/api-reference`  
+HTTP examples: [`docs/http-examples.md`](docs/http-examples.md)
 
-This project uses PostgreSQL with Drizzle ORM.
+## Environment
 
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/server/.env` file with your PostgreSQL connection details.
+Copy `apps/server/.env.example`. Required for boot: `DATABASE_URL`, `CORS_ORIGIN`.
 
-3. Apply the schema to your database:
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `COURIER_TIMEOUT_MS` | `10000` | Partner HTTP timeout |
+| `COURIER_RETRY_ATTEMPTS` | `3` | 5xx / timeout / network retries |
+| `COURIER_RETRY_BASE_MS` | `200` | Backoff base (full jitter) |
+| `COURIER_RETRY_MAX_MS` | `2000` | Backoff cap |
+| `BULK_CONCURRENCY` | `10` | Skip-locked worker parallelism |
+| `BULK_POLL_INTERVAL_MS` | `500` | Worker tick |
+| `BULK_ITEM_STALE_MS` | `60000` | Reclaim crashed `PROCESSING` items |
+| `URBANEBOLT_BASE_URL` | UAT | Partner base URL |
+| `URBANEBOLT_USERNAME` / `PASSWORD` / `CUSTOMER_CODE` | — | UAT credentials (never commit) |
+
+Mock needs no secrets. Missing UrbaneBolt credentials fail at first `urbanebolt` call (`COURIER_AUTH_FAILED`), not at boot (except production, which asserts they are set).
+
+## API
+
+| Method | Path | Success |
+| --- | --- | --- |
+| `POST` | `/api/v1/orders` | `201` |
+| `GET` | `/api/v1/orders/{order_id}` | `200` |
+| `GET` | `/api/v1/orders/{order_id}/track` | `200` |
+| `POST` | `/api/v1/orders/{order_id}/cancel` | `200` |
+| `POST` | `/api/v1/orders/bulk` | `202` |
+| `GET` | `/api/v1/batches/{batch_id}` | `200` |
+| `GET` | `/api/v1/couriers` | `200` |
+| `GET` | `/api/v1/health` | `200` |
+
+`order_id` in paths is the **consumer** id (idempotency key), not the internal UUID. Errors use `{ error: { code, message, request_id, details } }`. Every response echoes `X-Request-Id`.
+
+## Tests
 
 ```bash
-pnpm run db:push
+pnpm run test
+pnpm run check-types
+pnpm run check
 ```
 
-Then, run the development server:
+CI must not hit UrbaneBolt UAT. Adapter tests mock `fetch`. Optional live smoke: `URBANEBOLT_SMOKE=1` in `packages/couriers`.
 
-```bash
-pnpm run dev
-```
+## How to add a courier
 
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
+Adding a partner is **one adapter module + env vars + one `registry.register()`**. Do not edit existing adapters, public Zod DTOs, routers, or `OrderService`.
 
-## UI Customization
+1. Create `packages/couriers/src/<id>/` with `adapter.ts` implementing `CourierAdapter` (`createShipment`, `track`, `cancel`, `mapStatus`). Put partner JSON parsing in isolated files. Use `createCourierHttp()` so timeout, retry, and redaction stay shared.
+2. Add credentials to `packages/env/src/server.ts` and `apps/server/.env.example`.
+3. Register in `packages/couriers/src/index.ts`: `registry.register(new YourAdapter())`.
+4. Cover mappers and mocked HTTP in `packages/couriers/src/<id>/*.test.ts`.
 
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
+`GET /api/v1/couriers` will list the new id. Callers pass it as `courier_partner`.
 
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
+## Architecture
 
-### Add more shared components
+See [`DESIGN.md`](DESIGN.md) and [`docs/architecture.md`](docs/architecture.md).
 
-Run this from the project root to add more primitives to the shared UI package:
+- **Strategy + registry:** services never `switch` on partner names.
+- **Bulk:** `202` + poll, PostgreSQL `SKIP LOCKED`, `p-limit(BULK_CONCURRENCY)` — not inline `Promise.all`.
+- **Logs:** evlog wide events (`order.create`, `order.track`, `order.cancel`, `order.bulk.accept`, `courier.http`). Tokens and `Authorization` are redacted. Partner bodies live in append-only `courier_api_calls`, not HTTP error envelopes.
 
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
-```
+## Scripts
 
-Import shared components like this:
-
-```tsx
-import { Button } from "@multi-courier-integration-platform/ui/components/button";
-```
-
-### Add app-specific blocks
-
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
-
-## Deployment
-
-### Docker Compose
-
-- Target: web + server
-- Config: `docker-compose.yml` (app Dockerfiles live in `apps/*/Dockerfile`)
-- Build images: pnpm run docker:build
-- Start: pnpm run docker:up
-- Logs: pnpm run docker:logs
-- Stop: pnpm run docker:down
-
-Environment variables are read from each app's `.env` file (baked into web builds for public variables) and overridden in `docker-compose.yml` for container networking.
-
-For more details, see the guide on [Deploying with Docker Compose](https://www.better-t-stack.dev/docs/guides/docker).
-
-## Git Hooks and Formatting
-
-- Initialize hooks: `pnpm run prepare`
-- Run checks: `pnpm run check`
-
-## Project Structure
-
-```
-multi-courier-integration-platform/
-├── apps/
-│   ├── web/         # Frontend application (React + TanStack Router)
-│   └── server/      # Backend API (Express, ORPC)
-├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
-│   └── db/          # Database schema & queries
-```
-
-## Available Scripts
-
-- `pnpm run dev`: Start all applications in development mode
-- `pnpm run build`: Build all applications
-- `pnpm run dev:web`: Start only the web application
-- `pnpm run dev:server`: Start only the server
-- `pnpm run check-types`: Check TypeScript types across all apps
-- `pnpm run db:push`: Push schema changes to database
-- `pnpm run db:generate`: Generate database client/types
-- `pnpm run db:migrate`: Run database migrations
-- `pnpm run db:studio`: Open database studio UI
-- `pnpm run check`: Run Biome formatting and linting
-- `pnpm run docker:build`: Build the Docker Compose images
-- `pnpm run docker:up`: Build and start the Docker Compose stack
-- `pnpm run docker:logs`: Tail logs from the Docker Compose stack
-- `pnpm run docker:down`: Stop the Docker Compose stack
+- `pnpm run dev` / `dev:server` / `dev:web`
+- `pnpm run db:start` / `db:migrate` / `db:studio`
+- `pnpm run test` / `check-types` / `check`
+- `pnpm run docker:up` / `docker:down`

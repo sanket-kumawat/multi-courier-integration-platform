@@ -40,6 +40,21 @@ describe("OrderService.create", () => {
 		expect(created.internal_id).toEqual(expect.any(String));
 	});
 
+	it("records an order.create wide event", async () => {
+		const { service } = createService();
+		const log = { set: vi.fn(), error: vi.fn() };
+		await service.create(input(), { requestId: "req_test", log });
+		expect(log.set).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "order.create",
+				request_id: "req_test",
+				order_id: "OMS-2026-000142",
+				courier_partner: "mock",
+				operation: "CREATE",
+			}),
+		);
+	});
+
 	it("replays an identical payload without calling the courier again", async () => {
 		const { service, createShipment } = createService();
 		const first = await service.create(input(), { requestId: "req_1" });

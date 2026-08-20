@@ -5,20 +5,35 @@ import {
 import { encodeErrorEnvelope } from "@multi-courier-integration-platform/api/errors";
 import { appRouter } from "@multi-courier-integration-platform/api/routers/index";
 import { createProductionServices } from "@multi-courier-integration-platform/api/services/index";
-import { env } from "@multi-courier-integration-platform/env/server";
+import {
+	assertUrbaneBoltConfigured,
+	env,
+} from "@multi-courier-integration-platform/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/node";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
-import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/node";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import cors from "cors";
-import { initLogger } from "evlog";
+import { auditRedactPreset, initLogger } from "evlog";
 import { evlog } from "evlog/express";
 import { createFsDrain } from "evlog/fs";
 import express from "express";
 
+assertUrbaneBoltConfigured();
+
 initLogger({
 	env: { service: "multi-courier-integration-platform-server" },
+	redact: {
+		paths: [
+			...(auditRedactPreset.paths ?? []),
+			"password",
+			"token",
+			"access_token",
+			"refresh_token",
+			"authorization",
+			"Authorization",
+		],
+	},
 });
 
 const app = express();
@@ -27,6 +42,7 @@ const {
 	trackingService,
 	cancelService,
 	bulkOrderService,
+	courierRegistry,
 	bulkWorker,
 } = createProductionServices();
 
@@ -50,13 +66,7 @@ app.use((req, res, next) => {
 	next();
 });
 
-const rpcHandler = new RPCHandler(appRouter, {
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
-});
+const rpcHandler = new RPCHandler(appRouter);
 
 const apiHandler = new OpenAPIHandler(appRouter, {
 	plugins: [
@@ -73,11 +83,6 @@ const apiHandler = new OpenAPIHandler(appRouter, {
 			},
 		}),
 	],
-	interceptors: [
-		onError((error) => {
-			console.error(error);
-		}),
-	],
 	customErrorResponseBodyEncoder: encodeErrorEnvelope,
 });
 
@@ -89,6 +94,7 @@ app.use(async (req, res, next) => {
 		trackingService,
 		cancelService,
 		bulkOrderService,
+		courierRegistry,
 	});
 
 	const rpcResult = await rpcHandler.handle(req, res, {

@@ -1,5 +1,16 @@
+import type { AdapterLogger } from "./contract";
 import { CourierAuthFailedError, CourierUnavailableError } from "./errors";
 
+/**
+ * Outbound courier HTTP.
+ *
+ * Retry only network errors, timeouts, and HTTP 5xx. Do not retry 4xx except
+ * the dedicated 401 re-auth path (refresh once). Backoff is full jitter:
+ * `min(cap, base * 2 ** (attempt - 1)) * random(0, 1)`.
+ *
+ * Authorization headers, passwords, and tokens are redacted on the audit
+ * payload returned as `rawRequest` / `rawResponse`.
+ */
 export const REDACTED = "[REDACTED]";
 
 const SENSITIVE_KEY =
@@ -24,6 +35,13 @@ export type CourierHttpRequest = {
 	body?: unknown;
 	signal?: AbortSignal;
 	onUnauthorized?: () => Promise<CourierHeaders | undefined>;
+	meta?: {
+		requestId?: string;
+		orderId?: string;
+		courierPartner?: string;
+		operation?: string;
+		logger?: AdapterLogger;
+	};
 };
 
 export type CourierHttpAudit = {
@@ -149,6 +167,7 @@ export async function courierRequest(
 			throw new CourierUnavailableError("Courier request was aborted");
 		}
 
+		const started = Date.now();
 		try {
 			const result = await performAttempt({
 				url: request.url,
@@ -158,6 +177,12 @@ export async function courierRequest(
 				parsedBody: request.body,
 				signal: request.signal,
 				config: resolved,
+			});
+			emitCourierHttp(request, {
+				attempt,
+				http_status: result.status,
+				duration_ms: Date.now() - started,
+				error_type: result.status >= 500 ? "HTTP" : undefined,
 			});
 
 			if (
@@ -200,6 +225,16 @@ export async function courierRequest(
 
 			return result;
 		} catch (error) {
+			if (
+				!(error instanceof CourierAuthFailedError) &&
+				!(error instanceof CourierUnavailableError)
+			) {
+				emitCourierHttp(request, {
+					attempt,
+					duration_ms: Date.now() - started,
+					error_type: isAbortError(error) ? "TIMEOUT" : "NETWORK",
+				});
+			}
 			if (error instanceof CourierAuthFailedError) {
 				throw error;
 			}
@@ -223,6 +258,19 @@ export async function courierRequest(
 	}
 
 	throw new CourierUnavailableError();
+}
+
+function emitCourierHttp(
+	request: CourierHttpRequest,
+	fields: Record<string, unknown>,
+): void {
+	request.meta?.logger?.info("courier.http", {
+		request_id: request.meta.requestId,
+		order_id: request.meta.orderId,
+		courier_partner: request.meta.courierPartner,
+		operation: request.meta.operation,
+		...fields,
+	});
 }
 
 function backoffMs(
@@ -258,7 +306,7 @@ async function performAttempt(args: {
 	url: string;
 	method: string;
 	headers: CourierHeaders;
-	body: string | Uint8Array | undefined;
+	body: string | undefined;
 	parsedBody: unknown;
 	signal?: AbortSignal;
 	config: CourierHttpConfig;
@@ -313,11 +361,11 @@ async function readBody(response: Response): Promise<unknown> {
 function encodeBody(
 	body: unknown,
 	headers: CourierHeaders,
-): { body: string | Uint8Array | undefined; contentType?: string } {
+): { body: string | undefined; contentType?: string } {
 	if (body === undefined || body === null) {
 		return { body: undefined };
 	}
-	if (typeof body === "string" || body instanceof Uint8Array) {
+	if (typeof body === "string") {
 		return { body };
 	}
 	if (hasHeader(headers, "content-type")) {
