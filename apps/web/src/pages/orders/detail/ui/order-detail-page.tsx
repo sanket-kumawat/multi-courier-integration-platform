@@ -23,6 +23,7 @@ import { StatusBadge } from "@/entities/order";
 import { orpc } from "@/shared/api";
 import { getApiErrorCode, toastApiError } from "@/shared/lib";
 
+import { CancelOrderDialog } from "./cancel-order-dialog";
 import { StaleTrackingBanner } from "./stale-tracking-banner";
 import { TrackingTimeline } from "./tracking-timeline";
 
@@ -36,6 +37,9 @@ const TERMINAL_STATUSES = new Set([
 	"RTO",
 	"FAILED",
 ]);
+
+/** Matches cancel API: PENDING | CREATED | FAILED only. */
+const CANCELLABLE_STATUSES = new Set(["PENDING", "CREATED", "FAILED"]);
 
 const TRACK_POLL_MS = 30_000;
 
@@ -170,6 +174,7 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
 	const order = orderQuery.data;
 	const tracking = trackQuery.data;
 	const displayStatus = tracking?.status ?? order.status;
+	const canCancel = CANCELLABLE_STATUSES.has(displayStatus);
 	const trackErrorCode = trackQuery.isError
 		? getApiErrorCode(trackQuery.error)
 		: null;
@@ -177,14 +182,28 @@ export function OrderDetailPage({ orderId }: OrderDetailPageProps) {
 	return (
 		<main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-8">
 			<div className="flex flex-col gap-2">
-				<div className="flex flex-wrap items-center gap-3">
-					<h1 className="font-medium text-xl tracking-tight">{order.order_id}</h1>
-					<StatusBadge status={displayStatus} />
+				<div className="flex flex-wrap items-start justify-between gap-3">
+					<div className="flex flex-col gap-2">
+						<div className="flex flex-wrap items-center gap-3">
+							<h1 className="font-medium text-xl tracking-tight">
+								{order.order_id}
+							</h1>
+							<StatusBadge status={displayStatus} />
+						</div>
+						<p className="text-muted-foreground text-sm">
+							Shipment card is getOrder (database). Tracking below calls the
+							courier on refresh — there are no webhooks in v1.
+						</p>
+					</div>
+					<div className="flex flex-col items-end gap-1">
+						<CancelOrderDialog orderId={order.order_id} enabled={canCancel} />
+						{!canCancel ? (
+							<p className="max-w-48 text-right text-muted-foreground text-xs">
+								Cancel is only available for PENDING, CREATED, or FAILED.
+							</p>
+						) : null}
+					</div>
 				</div>
-				<p className="text-muted-foreground text-sm">
-					Shipment card is getOrder (database). Tracking below calls the courier
-					on refresh — there are no webhooks in v1.
-				</p>
 			</div>
 
 			{tracking?.stale ? <StaleTrackingBanner /> : null}
