@@ -1,0 +1,6 @@
+{
+	"status": true,
+	"message": "Shipment cancelled",
+	"successResponse": [{ "awb": "200000001170" }],
+	"failureResponse": []
+}

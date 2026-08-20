@@ -1,0 +1,11 @@
+{
+	"status": false,
+	"message": "Pincode 999999 is not serviceable",
+	"successResponse": [],
+	"failedResponse": [
+		{
+			"orderNumber": "OMS-2026-000142",
+			"message": "Pincode 999999 is not serviceable"
+		}
+	]
+}

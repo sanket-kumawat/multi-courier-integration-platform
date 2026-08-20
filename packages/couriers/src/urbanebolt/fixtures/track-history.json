@@ -1,0 +1,24 @@
+{
+	"status": true,
+	"message": "Success",
+	"successResponse": [
+		{
+			"awb": "200000001170",
+			"status": "In Transit",
+			"travelHistory": [
+				{
+					"status": "Manifested",
+					"date": "2026-08-19T12:40:11.204Z",
+					"remarks": "Shipment manifested",
+					"location": "BLR"
+				},
+				{
+					"status": "In Transit",
+					"date": "2026-08-19T18:02:00.000Z",
+					"remarks": "Reached hub",
+					"location": "BLR"
+				}
+			]
+		}
+	]
+}

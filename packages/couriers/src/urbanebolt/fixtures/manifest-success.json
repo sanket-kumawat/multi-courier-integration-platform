@@ -1,0 +1,12 @@
+{
+	"status": true,
+	"message": "Success",
+	"successResponse": [
+		{
+			"awb": "200000001170",
+			"orderNumber": "OMS-2026-000142",
+			"status": "Manifested"
+		}
+	],
+	"failedResponse": []
+}

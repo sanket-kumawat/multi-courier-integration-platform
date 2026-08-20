@@ -1,6 +1,7 @@
 import {
 	CourierRegistry,
 	MockCourierAdapter,
+	UrbaneBoltAdapter,
 } from "@multi-courier-integration-platform/couriers";
 import { describe, expect, it, vi } from "vitest";
 import { createOrderSchema } from "../dto/orders";
@@ -134,5 +135,59 @@ describe("OrderService.get", () => {
 			code: "ORDER_NOT_FOUND",
 			message: "Order 'OMS-2026-999999' not found",
 		});
+	});
+});
+
+describe("OrderService.create urbanebolt", () => {
+	it("uses the same service path as mock when urbanebolt is registered", async () => {
+		const fetchMock = vi.fn<typeof fetch>(async (url) => {
+			const href = String(url);
+			if (href.includes("/auth/getToken/")) {
+				return new Response(
+					JSON.stringify({
+						access_token: "ub-token",
+						expires_in: 86400,
+						token_type: "Bearer",
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response(
+				JSON.stringify({
+					status: true,
+					successResponse: [
+						{
+							awb: "200000001170",
+							orderNumber: "OMS-UB-1",
+							status: "Manifested",
+						},
+					],
+					failedResponse: [],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		});
+
+		const registry = new CourierRegistry();
+		registry.register(new MockCourierAdapter());
+		registry.register(
+			new UrbaneBoltAdapter({
+				username: "user",
+				password: "pass",
+				customerCode: "CUST-1",
+				fetch: fetchMock,
+				sleep: async () => undefined,
+			}),
+		);
+		const service = new OrderService(registry, new MemoryOrderStore());
+		const created = await service.create(
+			input({ courier_partner: "urbanebolt", order_id: "OMS-UB-1" }),
+			{ requestId: "req_ub" },
+		);
+
+		expect(created.courier_partner).toBe("urbanebolt");
+		expect(created.status).toBe("CREATED");
+		expect(created.awb).toBe("200000001170");
+		expect(created.order_id).toBe("OMS-UB-1");
 	});
 });
