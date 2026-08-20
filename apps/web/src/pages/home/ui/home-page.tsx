@@ -12,8 +12,9 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import { CourierSelect } from '@/features/select-courier';
 import { StatusBadge } from '@/entities/order';
+import { OrderLookupForm } from '@/features/lookup-order';
+import { CourierSelect } from '@/features/select-courier';
 import { orpc } from '@/shared/api';
 
 const quickLinks = [
@@ -25,7 +26,7 @@ const quickLinks = [
   {
     to: '/lookup' as const,
     title: 'Look up',
-    description: 'Get, track, or cancel an order by consumer order id.',
+    description: 'Open an order by consumer order id (getOrder).',
   },
   {
     to: '/bulk-create' as const,
@@ -71,6 +72,20 @@ export function HomePage() {
             />
             <span className='text-sm'>{healthLabel}</span>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Look up order</CardTitle>
+          <CardDescription>
+            Jump to detail by consumer{' '}
+            <code className='text-foreground'>order_id</code>. Detail reads the
+            database only.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <OrderLookupForm />
         </CardContent>
       </Card>
 
