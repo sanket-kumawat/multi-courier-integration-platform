@@ -10,7 +10,7 @@ import type {
 	TrackInput,
 	TrackResult,
 } from "../contract";
-import { CourierRejectedError } from "../errors";
+import { CourierRejectedError, CourierUnavailableError } from "../errors";
 
 const TRACK_PHASES = ["CREATED", "IN_TRANSIT", "DELIVERED"] as const;
 const DEFAULT_PHASE_DURATION_MS = 60_000;
@@ -70,6 +70,10 @@ export class MockCourierAdapter implements CourierAdapter {
 
 	async track(input: TrackInput, _ctx: AdapterContext): Promise<TrackResult> {
 		const shipment = this.requireShipment(input.awb);
+		// Demo / gate: order ids containing UNAVAILABLE simulate partner outage after create.
+		if (shipment.orderId.includes("UNAVAILABLE")) {
+			throw new CourierUnavailableError();
+		}
 		const partnerStatus = this.currentStatus(shipment);
 		const occurredAt = this.now();
 		const events: TrackEvent[] = [

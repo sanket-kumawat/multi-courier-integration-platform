@@ -100,6 +100,22 @@ describe("MockCourierAdapter", () => {
 		).rejects.toBeInstanceOf(CourierRejectedError);
 	});
 
+	it("throws CourierUnavailableError on track when orderId contains UNAVAILABLE", async () => {
+		const adapter = new MockCourierAdapter();
+		const input = sampleInput("OMS-UNAVAILABLE-1");
+		const created = await adapter.createShipment(
+			input,
+			testContext(input.orderId),
+		);
+
+		await expect(
+			adapter.track({ awb: created.awb }, testContext(input.orderId)),
+		).rejects.toMatchObject({
+			name: "CourierUnavailableError",
+			code: "COURIER_UNAVAILABLE",
+		});
+	});
+
 	it("cycles track CREATED → IN_TRANSIT → DELIVERED from elapsed time since create", async () => {
 		let nowMs = Date.parse("2026-08-19T12:00:00.000Z");
 		const adapter = new MockCourierAdapter({
