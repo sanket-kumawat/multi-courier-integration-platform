@@ -22,8 +22,13 @@ initLogger({
 });
 
 const app = express();
-const { orderService, trackingService, cancelService } =
-	createProductionServices();
+const {
+	orderService,
+	trackingService,
+	cancelService,
+	bulkOrderService,
+	bulkWorker,
+} = createProductionServices();
 
 app.use(
 	evlog({
@@ -83,6 +88,7 @@ app.use(async (req, res, next) => {
 		orderService,
 		trackingService,
 		cancelService,
+		bulkOrderService,
 	});
 
 	const rpcResult = await rpcHandler.handle(req, res, {
@@ -134,4 +140,5 @@ app.get("/api-reference", (_req, res) => {
 
 app.listen(3000, () => {
 	console.log("Server is running on http://localhost:3000");
+	bulkWorker.start({ intervalMs: env.BULK_POLL_INTERVAL_MS });
 });

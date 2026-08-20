@@ -6,6 +6,7 @@ import { call } from "@orpc/server";
 import { describe, expect, it } from "vitest";
 import { createOrderSchema } from "../dto/orders";
 import { validCreateOrder } from "../dto/orders.test";
+import { BulkOrderService } from "../services/bulk";
 import { CancelService } from "../services/cancel";
 import { OrderService } from "../services/orders";
 import { MemoryOrderStore } from "../services/persistence/memory";
@@ -23,6 +24,7 @@ function testContext() {
 		orderService: new OrderService(registry, store),
 		trackingService: new TrackingService(registry, store),
 		cancelService: new CancelService(registry, store),
+		bulkOrderService: new BulkOrderService(registry, store),
 	};
 }
 
@@ -122,6 +124,67 @@ describe("cancelOrder", () => {
 		).rejects.toMatchObject({
 			code: "ORDER_NOT_FOUND",
 			status: 404,
+		});
+	});
+});
+
+describe("createBulkOrders", () => {
+	it("returns 202-shaped QUEUED without waiting for courier I/O", async () => {
+		const context = testContext();
+		const accepted = await call(
+			appRouter.createBulkOrders,
+			{
+				orders: [
+					createOrderSchema.parse(validCreateOrder({ order_id: "BULK-001" })),
+					createOrderSchema.parse(validCreateOrder({ order_id: "BULK-002" })),
+				],
+			},
+			{ context },
+		);
+
+		expect(accepted.status).toBe("QUEUED");
+		expect(accepted.accepted).toBe(2);
+		expect(accepted.poll_url).toBe(`/api/v1/batches/${accepted.batch_id}`);
+
+		const polled = await call(
+			appRouter.getBatch,
+			{ batch_id: accepted.batch_id },
+			{ context },
+		);
+		expect(polled.status).toBe("QUEUED");
+		expect(polled.results).toEqual([]);
+	});
+
+	it("rejects duplicate order_id values with VALIDATION_ERROR", async () => {
+		const context = testContext();
+		await expect(
+			call(
+				appRouter.createBulkOrders,
+				{
+					orders: [
+						createOrderSchema.parse(validCreateOrder({ order_id: "BULK-001" })),
+						createOrderSchema.parse(validCreateOrder({ order_id: "BULK-001" })),
+					],
+				},
+				{ context },
+			),
+		).rejects.toMatchObject({
+			code: "VALIDATION_ERROR",
+			status: 400,
+			message: "Duplicate order_id values in batch",
+		});
+	});
+});
+
+describe("getBatch", () => {
+	it("maps a missing batch to ORDER_NOT_FOUND", async () => {
+		const context = testContext();
+		await expect(
+			call(appRouter.getBatch, { batch_id: "bch_nonexistent" }, { context }),
+		).rejects.toMatchObject({
+			code: "ORDER_NOT_FOUND",
+			status: 404,
+			message: "Batch 'bch_nonexistent' not found",
 		});
 	});
 });

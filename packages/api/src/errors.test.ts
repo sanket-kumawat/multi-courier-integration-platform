@@ -120,6 +120,7 @@ describe("publicProcedure error middleware", () => {
 					orderService: undefined,
 					trackingService: undefined,
 					cancelService: undefined,
+					bulkOrderService: undefined,
 				},
 			}),
 		).rejects.toMatchObject({

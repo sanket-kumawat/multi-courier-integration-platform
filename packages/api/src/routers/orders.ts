@@ -1,4 +1,6 @@
+import { bulkAcceptedSchema } from "../dto/batches";
 import {
+	bulkCreateSchema,
 	cancelOrderResponseSchema,
 	createOrderSchema,
 	getOrderInputSchema,
@@ -7,6 +9,7 @@ import {
 } from "../dto/orders";
 import { AppError } from "../errors";
 import { publicProcedure } from "../index";
+import type { BulkOrderService } from "../services/bulk";
 import type { CancelService } from "../services/cancel";
 import type { OrderService } from "../services/orders";
 import type { TrackingService } from "../services/tracking";
@@ -38,6 +41,15 @@ function requireCancelService(
 	return cancelService;
 }
 
+function requireBulkOrderService(
+	bulkOrderService: BulkOrderService | undefined,
+): BulkOrderService {
+	if (!bulkOrderService) {
+		throw new AppError("INTERNAL_ERROR", "An unexpected error occurred");
+	}
+	return bulkOrderService;
+}
+
 export const createOrder = publicProcedure
 	.route({
 		method: "POST",
@@ -53,6 +65,23 @@ export const createOrder = publicProcedure
 	.output(orderResponseSchema)
 	.handler(({ input, context }) =>
 		requireOrderService(context.orderService).create(input, context),
+	);
+
+export const createBulkOrders = publicProcedure
+	.route({
+		method: "POST",
+		path: "/orders/bulk",
+		summary: "Bulk create orders",
+		description:
+			"Accept up to 100 orders and process them in the background. Poll GET /batches/{batch_id} for results.",
+		tags: ["orders"],
+		successStatus: 202,
+		successDescription: "Batch accepted",
+	})
+	.input(bulkCreateSchema)
+	.output(bulkAcceptedSchema)
+	.handler(({ input, context }) =>
+		requireBulkOrderService(context.bulkOrderService).enqueue(input, context),
 	);
 
 export const getOrder = publicProcedure

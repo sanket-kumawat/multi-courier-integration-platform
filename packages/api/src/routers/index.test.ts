@@ -10,6 +10,7 @@ const testContext = {
 	orderService: undefined,
 	trackingService: undefined,
 	cancelService: undefined,
+	bulkOrderService: undefined,
 };
 
 describe("healthCheck", () => {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	bulkCreateSchema,
 	cancelOrderResponseSchema,
 	createOrderSchema,
 	getOrderInputSchema,
@@ -193,6 +194,43 @@ describe("trackOrderResponseSchema", () => {
 				],
 			}),
 		).toMatchObject({ stale: false, status: "IN_TRANSIT" });
+	});
+});
+
+describe("bulkCreateSchema", () => {
+	it("accepts 1 and 100 orders", () => {
+		expect(
+			bulkCreateSchema.parse({ orders: [validCreateOrder()] }).orders,
+		).toHaveLength(1);
+
+		const hundred = Array.from({ length: 100 }, (_, index) =>
+			validCreateOrder({ order_id: `OMS-${index}` }),
+		);
+		expect(bulkCreateSchema.parse({ orders: hundred }).orders).toHaveLength(
+			100,
+		);
+	});
+
+	it("rejects 0 and 101 orders", () => {
+		const empty = bulkCreateSchema.safeParse({ orders: [] });
+		expect(empty.success).toBe(false);
+		if (!empty.success) {
+			expect(empty.error.issues[0]?.message).toBe(
+				"Array must contain between 1 and 100 elements",
+			);
+		}
+
+		const tooMany = bulkCreateSchema.safeParse({
+			orders: Array.from({ length: 101 }, (_, index) =>
+				validCreateOrder({ order_id: `OMS-${index}` }),
+			),
+		});
+		expect(tooMany.success).toBe(false);
+		if (!tooMany.success) {
+			expect(tooMany.error.issues[0]?.message).toBe(
+				"Array must contain between 1 and 100 elements",
+			);
+		}
 	});
 });
 

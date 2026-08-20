@@ -1,4 +1,6 @@
 import {
+	bulkBatches,
+	bulkBatchItems,
 	courierApiCalls,
 	type createDb,
 	orderPackages,
@@ -7,8 +9,17 @@ import {
 	shipmentActions,
 	trackingEvents,
 } from "@multi-courier-integration-platform/db";
-import { asc, eq } from "drizzle-orm";
-import type { CreateOrderInput } from "../../dto/orders";
+import { and, asc, eq, inArray, isNull, lt, or, sql } from "drizzle-orm";
+import { type CreateOrderInput, createOrderSchema } from "../../dto/orders";
+import type {
+	BatchSnapshot,
+	BulkStore,
+	ClaimedBatchItem,
+	CompleteItemInput,
+	EnqueueBulkInput,
+	PersistedBatch,
+	PersistedBatchItem,
+} from "../bulk/store";
 import type { ApplyCancelInput, CancelStore } from "../cancel/store";
 import type {
 	InsertPendingInput,
@@ -23,6 +34,9 @@ import type {
 	RecordTrackFailureInput,
 	TrackingStore,
 } from "../tracking/store";
+
+type Database = ReturnType<typeof createDb>;
+type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 function money(value: number): string {
 	return value.toFixed(2);
@@ -50,6 +64,29 @@ function toPersisted(row: typeof orders.$inferSelect): PersistedOrder {
 	};
 }
 
+function toPersistedBatch(
+	row: typeof bulkBatches.$inferSelect,
+): PersistedBatch {
+	return {
+		id: row.id,
+		status: row.status,
+		total: row.total,
+		succeeded: row.succeeded,
+		failed: row.failed,
+		createdAt: row.createdAt,
+		updatedAt: row.updatedAt,
+		completedAt: row.completedAt ?? null,
+	};
+}
+
+function payloadFromSnapshot(snapshot: unknown): CreateOrderInput {
+	const parsed = createOrderSchema.safeParse(snapshot);
+	if (parsed.success) {
+		return parsed.data;
+	}
+	return snapshot as CreateOrderInput;
+}
+
 function toPersistedEvent(
 	row: typeof trackingEvents.$inferSelect,
 ): PersistedTrackingEvent {
@@ -65,67 +102,14 @@ function toPersistedEvent(
 }
 
 export class DrizzleOrderStore
-	implements OrderStore, TrackingStore, CancelStore
+	implements OrderStore, TrackingStore, CancelStore, BulkStore
 {
 	constructor(private readonly db: ReturnType<typeof createDb>) {}
 
 	async insertPending(
 		input: InsertPendingInput,
 	): Promise<{ order: PersistedOrder; inserted: boolean }> {
-		return this.db.transaction(async (tx) => {
-			const [inserted] = await tx
-				.insert(orders)
-				.values({
-					orderId: input.order.order_id,
-					courierPartner: input.order.courier_partner,
-					status: "PENDING",
-					serviceType: input.order.service_type,
-					paymentMode: input.order.payment.mode,
-					declaredValue: money(input.order.payment.declared_value),
-					collectableValue: money(input.order.payment.collectable_value),
-					invoiceNumber: input.order.payment.invoice_number,
-					invoiceDate: input.order.payment.invoice_date,
-					invoiceValue: money(input.order.payment.invoice_value),
-					payloadHash: input.payloadHash,
-					requestSnapshot: input.order as unknown as Record<string, unknown>,
-				})
-				.onConflictDoNothing({ target: orders.orderId })
-				.returning();
-
-			if (!inserted) {
-				const existing = await tx.query.orders.findFirst({
-					where: eq(orders.orderId, input.order.order_id),
-				});
-				if (!existing) {
-					throw new Error(
-						`Order '${input.order.order_id}' missing after conflict`,
-					);
-				}
-				return { order: toPersisted(existing), inserted: false };
-			}
-
-			await tx
-				.insert(orderParties)
-				.values([
-					partyRow(inserted.id, "SHIPPER", input.order.shipper),
-					partyRow(inserted.id, "CONSIGNEE", input.order.consignee),
-					partyRow(inserted.id, "RETURN", input.order.return_address),
-				]);
-			await tx.insert(orderPackages).values({
-				orderId: inserted.id,
-				position: 1,
-				description: input.order.package.description,
-				sku: input.order.package.sku,
-				quantity: input.order.package.quantity,
-				pieces: input.order.package.pieces,
-				weightKg: weight(input.order.package.weight_kg),
-				lengthCm: dimension(input.order.package.length_cm),
-				breadthCm: dimension(input.order.package.breadth_cm),
-				heightCm: dimension(input.order.package.height_cm),
-			});
-
-			return { order: toPersisted(inserted), inserted: true };
-		});
+		return this.db.transaction((tx) => this.writePending(tx, input));
 	}
 
 	async findByOrderId(orderId: string): Promise<PersistedOrder | undefined> {
@@ -390,6 +374,266 @@ export class DrizzleOrderStore
 
 			return { order: toPersisted(updated), cancelledAt: input.cancelledAt };
 		});
+	}
+
+	async enqueue(input: EnqueueBulkInput): Promise<PersistedBatch> {
+		return this.db.transaction(async (tx) => {
+			const [batch] = await tx
+				.insert(bulkBatches)
+				.values({
+					status: "QUEUED",
+					total: input.orders.length,
+				})
+				.returning();
+			if (!batch) {
+				throw new Error("Failed to insert bulk batch");
+			}
+
+			for (const [position, entry] of input.orders.entries()) {
+				const { order } = await this.writePending(tx, {
+					order: entry.order,
+					payloadHash: entry.payloadHash,
+					batchId: batch.id,
+				});
+				await tx.insert(bulkBatchItems).values({
+					batchId: batch.id,
+					orderId: entry.order.order_id,
+					position,
+					status: "QUEUED",
+					orderUuid: order.id,
+				});
+			}
+
+			return toPersistedBatch(batch);
+		});
+	}
+
+	async getBatch(batchId: string): Promise<BatchSnapshot | undefined> {
+		const batch = await this.db.query.bulkBatches.findFirst({
+			where: eq(bulkBatches.id, batchId),
+			with: {
+				items: {
+					with: { order: true },
+				},
+			},
+		});
+		if (!batch) {
+			return undefined;
+		}
+
+		const items: PersistedBatchItem[] = [...batch.items]
+			.sort((left, right) => left.position - right.position)
+			.map((item) => ({
+				id: item.id,
+				batchId: item.batchId,
+				orderId: item.orderId,
+				position: item.position,
+				status: item.status,
+				errorCode: item.errorCode,
+				errorMessage: item.errorMessage,
+				orderUuid: item.orderUuid,
+				claimedAt: item.claimedAt,
+				awb: item.order?.awb ?? null,
+				orderStatus: item.order?.status ?? null,
+			}));
+
+		return { batch: toPersistedBatch(batch), items };
+	}
+
+	async reclaimStale(staleMs: number): Promise<number> {
+		const cutoff = new Date(Date.now() - staleMs);
+		const rows = await this.db
+			.update(bulkBatchItems)
+			.set({
+				status: "QUEUED",
+				claimedAt: null,
+				updatedAt: new Date(),
+			})
+			.where(
+				and(
+					eq(bulkBatchItems.status, "PROCESSING"),
+					or(
+						isNull(bulkBatchItems.claimedAt),
+						lt(bulkBatchItems.claimedAt, cutoff),
+					),
+				),
+			)
+			.returning({ id: bulkBatchItems.id });
+		return rows.length;
+	}
+
+	async claimQueued(limit: number): Promise<ClaimedBatchItem[]> {
+		if (limit <= 0) {
+			return [];
+		}
+
+		return this.db.transaction(async (tx) => {
+			const rows = await tx
+				.select()
+				.from(bulkBatchItems)
+				.where(eq(bulkBatchItems.status, "QUEUED"))
+				.orderBy(asc(bulkBatchItems.createdAt))
+				.limit(limit)
+				.for("update", { skipLocked: true });
+
+			if (rows.length === 0) {
+				return [];
+			}
+
+			const ids = rows.map((row) => row.id);
+			const now = new Date();
+			await tx
+				.update(bulkBatchItems)
+				.set({
+					status: "PROCESSING",
+					claimedAt: now,
+					updatedAt: now,
+				})
+				.where(inArray(bulkBatchItems.id, ids));
+
+			const batchIds = [...new Set(rows.map((row) => row.batchId))];
+			await tx
+				.update(bulkBatches)
+				.set({ status: "PROCESSING", updatedAt: now })
+				.where(
+					and(
+						inArray(bulkBatches.id, batchIds),
+						eq(bulkBatches.status, "QUEUED"),
+					),
+				);
+
+			const orderIds = rows
+				.map((row) => row.orderUuid)
+				.filter((id): id is string => id !== null);
+			const orderRows =
+				orderIds.length > 0
+					? await tx.select().from(orders).where(inArray(orders.id, orderIds))
+					: [];
+			const ordersById = new Map(orderRows.map((row) => [row.id, row]));
+
+			return rows.map((row) => {
+				const order = row.orderUuid ? ordersById.get(row.orderUuid) : undefined;
+				return {
+					id: row.id,
+					batchId: row.batchId,
+					orderId: row.orderId,
+					position: row.position,
+					payload: payloadFromSnapshot(order?.requestSnapshot),
+				};
+			});
+		});
+	}
+
+	async completeItem(itemId: string, input: CompleteItemInput): Promise<void> {
+		await this.db.transaction(async (tx) => {
+			const item = await tx.query.bulkBatchItems.findFirst({
+				where: eq(bulkBatchItems.id, itemId),
+			});
+			if (!item || item.status === "SUCCEEDED" || item.status === "FAILED") {
+				return;
+			}
+
+			const now = new Date();
+			await tx
+				.update(bulkBatchItems)
+				.set({
+					status: input.success ? "SUCCEEDED" : "FAILED",
+					errorCode: input.success ? null : input.errorCode,
+					errorMessage: input.success ? null : input.errorMessage,
+					claimedAt: null,
+					updatedAt: now,
+				})
+				.where(eq(bulkBatchItems.id, itemId));
+
+			const [batch] = await tx
+				.update(bulkBatches)
+				.set(
+					input.success
+						? {
+								succeeded: sql`${bulkBatches.succeeded} + 1`,
+								updatedAt: now,
+							}
+						: {
+								failed: sql`${bulkBatches.failed} + 1`,
+								updatedAt: now,
+							},
+				)
+				.where(eq(bulkBatches.id, item.batchId))
+				.returning();
+			if (!batch) {
+				return;
+			}
+
+			if (batch.succeeded + batch.failed >= batch.total) {
+				await tx
+					.update(bulkBatches)
+					.set({
+						status: "COMPLETED",
+						completedAt: now,
+						updatedAt: now,
+					})
+					.where(eq(bulkBatches.id, batch.id));
+			}
+		});
+	}
+
+	private async writePending(
+		tx: Transaction,
+		input: InsertPendingInput,
+	): Promise<{ order: PersistedOrder; inserted: boolean }> {
+		const [inserted] = await tx
+			.insert(orders)
+			.values({
+				orderId: input.order.order_id,
+				courierPartner: input.order.courier_partner,
+				status: "PENDING",
+				serviceType: input.order.service_type,
+				paymentMode: input.order.payment.mode,
+				declaredValue: money(input.order.payment.declared_value),
+				collectableValue: money(input.order.payment.collectable_value),
+				invoiceNumber: input.order.payment.invoice_number,
+				invoiceDate: input.order.payment.invoice_date,
+				invoiceValue: money(input.order.payment.invoice_value),
+				payloadHash: input.payloadHash,
+				requestSnapshot: input.order as unknown as Record<string, unknown>,
+				batchId: input.batchId,
+			})
+			.onConflictDoNothing({ target: orders.orderId })
+			.returning();
+
+		if (!inserted) {
+			const existing = await tx.query.orders.findFirst({
+				where: eq(orders.orderId, input.order.order_id),
+			});
+			if (!existing) {
+				throw new Error(
+					`Order '${input.order.order_id}' missing after conflict`,
+				);
+			}
+			return { order: toPersisted(existing), inserted: false };
+		}
+
+		await tx
+			.insert(orderParties)
+			.values([
+				partyRow(inserted.id, "SHIPPER", input.order.shipper),
+				partyRow(inserted.id, "CONSIGNEE", input.order.consignee),
+				partyRow(inserted.id, "RETURN", input.order.return_address),
+			]);
+		await tx.insert(orderPackages).values({
+			orderId: inserted.id,
+			position: 1,
+			description: input.order.package.description,
+			sku: input.order.package.sku,
+			quantity: input.order.package.quantity,
+			pieces: input.order.package.pieces,
+			weightKg: weight(input.order.package.weight_kg),
+			lengthCm: dimension(input.order.package.length_cm),
+			breadthCm: dimension(input.order.package.breadth_cm),
+			heightCm: dimension(input.order.package.height_cm),
+		});
+
+		return { order: toPersisted(inserted), inserted: true };
 	}
 }
 

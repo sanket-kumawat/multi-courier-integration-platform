@@ -148,7 +148,17 @@ export const orderResponseSchema = z.object({
 	updated_at: z.string(),
 });
 
+const BULK_SIZE_MESSAGE = "Array must contain between 1 and 100 elements";
+
+export const bulkCreateSchema = z.object({
+	orders: z
+		.array(createOrderSchema)
+		.min(1, BULK_SIZE_MESSAGE)
+		.max(100, BULK_SIZE_MESSAGE),
+});
+
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;
+export type BulkCreateInput = z.infer<typeof bulkCreateSchema>;
 export type OrderResponse = z.infer<typeof orderResponseSchema>;
 export type TrackOrderResponse = z.infer<typeof trackOrderResponseSchema>;
 export type CancelOrderResponse = z.infer<typeof cancelOrderResponseSchema>;

@@ -1,4 +1,5 @@
 import type { Request, Response } from "express";
+import type { BulkOrderService } from "./services/bulk";
 import type { CancelService } from "./services/cancel";
 import type { OrderService } from "./services/orders";
 import type { TrackingService } from "./services/tracking";
@@ -9,6 +10,7 @@ interface CreateContextOptions {
 	orderService?: OrderService;
 	trackingService?: TrackingService;
 	cancelService?: CancelService;
+	bulkOrderService?: BulkOrderService;
 }
 
 export function resolveRequestId(req: Request): string {
@@ -25,6 +27,7 @@ export async function createContext({
 	orderService,
 	trackingService,
 	cancelService,
+	bulkOrderService,
 }: CreateContextOptions) {
 	const fromLocals = res?.locals.requestId;
 	const requestId =
@@ -39,6 +42,7 @@ export async function createContext({
 		orderService,
 		trackingService,
 		cancelService,
+		bulkOrderService,
 	};
 }
 

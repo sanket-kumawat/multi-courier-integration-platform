@@ -7,6 +7,7 @@ export type { PersistedOrder };
 export type InsertPendingInput = {
 	order: CreateOrderInput;
 	payloadHash: string;
+	batchId?: string;
 };
 
 export type MarkCreatedInput = {
