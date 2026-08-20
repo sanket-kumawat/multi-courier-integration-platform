@@ -15,6 +15,7 @@
 		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@multi-courier-integration-platform/couriers": "workspace:*",
 		"@multi-courier-integration-platform/db": "workspace:*",
 		"@multi-courier-integration-platform/env": "workspace:*",
 		"@orpc/client": "catalog:",
@@ -22,6 +23,7 @@
 		"@orpc/server": "catalog:",
 		"@orpc/zod": "catalog:",
 		"dotenv": "catalog:",
+		"drizzle-orm": "^0.45.2",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

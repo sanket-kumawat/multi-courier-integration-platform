@@ -7,6 +7,7 @@ const testContext = {
 	auth: null,
 	session: null,
 	requestId: "req_test",
+	orderService: undefined,
 };
 
 describe("healthCheck", () => {

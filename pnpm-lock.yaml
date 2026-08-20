@@ -102,6 +102,9 @@ importers:
       '@multi-courier-integration-platform/api':
         specifier: workspace:*
         version: link:../../packages/api
+      '@multi-courier-integration-platform/couriers':
+        specifier: workspace:*
+        version: link:../../packages/couriers
       '@multi-courier-integration-platform/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -245,6 +248,9 @@ importers:
 
   packages/api:
     dependencies:
+      '@multi-courier-integration-platform/couriers':
+        specifier: workspace:*
+        version: link:../couriers
       '@multi-courier-integration-platform/db':
         specifier: workspace:*
         version: link:../db
@@ -266,6 +272,9 @@ importers:
       dotenv:
         specifier: 'catalog:'
         version: 17.4.2
+      drizzle-orm:
+        specifier: ^0.45.2
+        version: 0.45.2(@types/pg@8.23.1)(pg@8.23.0)
       zod:
         specifier: 'catalog:'
         version: 4.4.3

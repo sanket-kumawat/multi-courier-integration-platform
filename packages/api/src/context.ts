@@ -1,8 +1,10 @@
 import type { Request, Response } from "express";
+import type { OrderService } from "./services/order-service";
 
 interface CreateContextOptions {
 	req: Request;
 	res?: Response;
+	orderService?: OrderService;
 }
 
 export function resolveRequestId(req: Request): string {
@@ -13,7 +15,11 @@ export function resolveRequestId(req: Request): string {
 	return crypto.randomUUID();
 }
 
-export async function createContext({ req, res }: CreateContextOptions) {
+export async function createContext({
+	req,
+	res,
+	orderService,
+}: CreateContextOptions) {
 	const fromLocals = res?.locals.requestId;
 	const requestId =
 		typeof fromLocals === "string" && fromLocals.length > 0
@@ -24,6 +30,7 @@ export async function createContext({ req, res }: CreateContextOptions) {
 		auth: null,
 		session: null,
 		requestId,
+		orderService,
 	};
 }
 

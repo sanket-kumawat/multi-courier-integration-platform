@@ -4,6 +4,7 @@ import {
 } from "@multi-courier-integration-platform/api/context";
 import { encodeErrorEnvelope } from "@multi-courier-integration-platform/api/errors";
 import { appRouter } from "@multi-courier-integration-platform/api/routers/index";
+import { createProductionOrderService } from "@multi-courier-integration-platform/api/services/index";
 import { env } from "@multi-courier-integration-platform/env/server";
 import { OpenAPIHandler } from "@orpc/openapi/node";
 import { OpenAPIReferencePlugin } from "@orpc/openapi/plugins";
@@ -21,6 +22,7 @@ initLogger({
 });
 
 const app = express();
+const orderService = createProductionOrderService();
 
 app.use(
 	evlog({
@@ -74,7 +76,7 @@ const apiHandler = new OpenAPIHandler(appRouter, {
 });
 
 app.use(async (req, res, next) => {
-	const context = await createContext({ req, res });
+	const context = await createContext({ req, res, orderService });
 
 	const rpcResult = await rpcHandler.handle(req, res, {
 		prefix: "/rpc",

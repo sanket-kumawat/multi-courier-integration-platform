@@ -113,7 +113,12 @@ describe("publicProcedure error middleware", () => {
 
 		await expect(
 			call(failing, undefined, {
-				context: { auth: null, session: null, requestId: "req_test" },
+				context: {
+					auth: null,
+					session: null,
+					requestId: "req_test",
+					orderService: undefined,
+				},
 			}),
 		).rejects.toMatchObject({
 			code: "ORDER_NOT_FOUND",

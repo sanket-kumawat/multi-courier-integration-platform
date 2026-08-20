@@ -9,9 +9,10 @@
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.mjs"
   },
-  "dependencies": {
-    "@multi-courier-integration-platform/api": "workspace:*",
-    "@multi-courier-integration-platform/db": "workspace:*",
+	"dependencies": {
+		"@multi-courier-integration-platform/api": "workspace:*",
+		"@multi-courier-integration-platform/couriers": "workspace:*",
+		"@multi-courier-integration-platform/db": "workspace:*",
     "@multi-courier-integration-platform/env": "workspace:*",
     "@orpc/openapi": "catalog:",
     "@orpc/server": "catalog:",
