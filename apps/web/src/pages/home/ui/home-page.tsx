@@ -29,7 +29,7 @@ const quickLinks = [
     description: 'Open an order by consumer order id (getOrder).',
   },
   {
-    to: '/bulk-create' as const,
+    to: '/orders/bulk' as const,
     title: 'Bulk',
     description: 'Queue up to 100 creates and poll the batch result.',
   },

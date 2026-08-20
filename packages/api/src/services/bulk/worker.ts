@@ -66,7 +66,8 @@ export class BulkWorker {
 	private async processItem(item: ClaimedBatchItem): Promise<void> {
 		try {
 			await this.orderService.create(item.payload, {
-				requestId: `bulk:${item.batchId}:${item.orderId}`,
+				// courier_api_calls.request_id is varchar(64); keep this well under the limit.
+				requestId: `bulk:${item.id}`,
 			});
 			await this.store.completeItem(item.id, { success: true });
 		} catch (error) {

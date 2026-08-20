@@ -7,7 +7,7 @@ const links = [
   { to: '/', label: 'Home' },
   { to: '/orders/new', label: 'Create' },
   { to: '/lookup', label: 'Look up' },
-  { to: '/bulk-create', label: 'Bulk' },
+  { to: '/orders/bulk', label: 'Bulk' },
 ] as const;
 
 export function Header() {
