@@ -5,7 +5,7 @@ import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import { QueryCache, QueryClient } from "@tanstack/react-query";
 
-import { toastApiError } from "@/lib/toast-api-error";
+import { toastApiError } from "@/shared/lib";
 
 declare module "@tanstack/react-query" {
 	interface Register {

@@ -1,16 +1,16 @@
 import { Separator } from '@multi-courier-integration-platform/ui/components/separator';
 import { Link } from '@tanstack/react-router';
 
-import { ModeToggle } from '@/shared/components/mode-toggle';
+import { ModeToggle } from './mode-toggle';
 
 const links = [
   { to: '/', label: 'Home' },
-  { to: '/create', label: 'Create' },
+  { to: '/orders/new', label: 'Create' },
   { to: '/lookup', label: 'Look up' },
   { to: '/bulk-create', label: 'Bulk' },
 ] as const;
 
-export default function Header() {
+export function Header() {
   return (
     <header>
       <div className='flex flex-row items-center justify-between gap-4 px-4 py-2'>

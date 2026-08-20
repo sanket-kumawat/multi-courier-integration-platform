@@ -7,7 +7,7 @@ import {
 } from '@multi-courier-integration-platform/ui/components/dropdown-menu';
 import { Moon, Sun } from 'lucide-react';
 
-import { useTheme } from '@/shared/components/theme-provider';
+import { useTheme } from '../providers/theme-provider';
 
 export function ModeToggle() {
   const { setTheme } = useTheme();

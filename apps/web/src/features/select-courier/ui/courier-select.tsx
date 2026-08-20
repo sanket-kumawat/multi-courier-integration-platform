@@ -14,8 +14,8 @@ import { Skeleton } from "@multi-courier-integration-platform/ui/components/skel
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useId, useRef } from "react";
 
-import { toastApiError } from "@/lib/toast-api-error";
-import { orpc } from "@/utils/orpc";
+import { orpc } from "@/shared/api";
+import { toastApiError } from "@/shared/lib";
 
 type CourierSelectProps = {
 	value: string | null;

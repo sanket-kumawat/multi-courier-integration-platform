@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { Lookup } from '@/pages/lookup';
+import { LookupPage } from '@/pages/lookup';
 
 export const Route = createFileRoute('/lookup')({
-  component: Lookup,
+  component: LookupPage,
 });

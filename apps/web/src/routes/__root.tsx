@@ -12,11 +12,11 @@ import {
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { useState } from 'react';
 
-import Header from '@/shared/components/header';
-import { ThemeProvider } from '@/shared/components/theme-provider';
-import { link, type orpc } from '@/utils/orpc';
+import { ThemeProvider } from '@/app/providers';
+import { Header } from '@/app/ui';
+import { link, orpc } from '@/shared/api';
 
-import '../index.css';
+import '@/app/styles/index.css';
 
 export interface RouterAppContext {
   orpc: typeof orpc;

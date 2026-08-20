@@ -12,13 +12,13 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
 
-import { CourierSelect } from '@/shared/components/courier-select';
-import { StatusBadge } from '@/shared/components/status-badge';
-import { orpc } from '@/utils/orpc';
+import { CourierSelect } from '@/features/select-courier';
+import { StatusBadge } from '@/entities/order';
+import { orpc } from '@/shared/api';
 
 const quickLinks = [
   {
-    to: '/create' as const,
+    to: '/orders/new' as const,
     title: 'Create',
     description: 'Submit a single shipment through a registered courier.',
   },
@@ -34,7 +34,7 @@ const quickLinks = [
   },
 ];
 
-export function Home() {
+export function HomePage() {
   const healthCheck = useQuery(orpc.healthCheck.queryOptions());
   const [courier, setCourier] = useState<string | null>(null);
 

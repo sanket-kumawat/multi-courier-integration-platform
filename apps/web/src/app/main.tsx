@@ -2,9 +2,9 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { createRouter, RouterProvider } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 
-import { routeTree } from './routeTree.gen';
-import Loader from './shared/components/loader';
-import { orpc, queryClient } from './utils/orpc';
+import { routeTree } from '../routeTree.gen';
+import { orpc, queryClient } from '@/shared/api';
+import { Loader } from '@/shared/ui';
 
 const router = createRouter({
   routeTree,
