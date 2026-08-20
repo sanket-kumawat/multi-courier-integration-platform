@@ -1,18 +1,22 @@
-import type { AppRouterClient } from "@multi-courier-integration-platform/api/routers/index";
-import { Toaster } from "@multi-courier-integration-platform/ui/components/sonner";
-import { createORPCClient } from "@orpc/client";
-import { createTanstackQueryUtils } from "@orpc/tanstack-query";
-import type { QueryClient } from "@tanstack/react-query";
-import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
-import { HeadContent, Outlet, createRootRouteWithContext } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { useState } from "react";
+import type { AppRouterClient } from '@multi-courier-integration-platform/api/routers/index';
+import { Toaster } from '@multi-courier-integration-platform/ui/components/sonner';
+import { createORPCClient } from '@orpc/client';
+import { createTanstackQueryUtils } from '@orpc/tanstack-query';
+import type { QueryClient } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import {
+  createRootRouteWithContext,
+  HeadContent,
+  Outlet,
+} from '@tanstack/react-router';
+import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
+import { useState } from 'react';
 
-import Header from "@/components/header";
-import { ThemeProvider } from "@/components/theme-provider";
-import { link, orpc } from "@/utils/orpc";
+import Header from '@/shared/components/header';
+import { ThemeProvider } from '@/shared/components/theme-provider';
+import { link, type orpc } from '@/utils/orpc';
 
-import "../index.css";
+import '../index.css';
 
 export interface RouterAppContext {
   orpc: typeof orpc;
@@ -24,17 +28,18 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: "multi-courier-integration-platform",
+        title: 'Courier ops demo',
       },
       {
-        name: "description",
-        content: "multi-courier-integration-platform is a web application",
+        name: 'description',
+        content:
+          'Demo UI for the Multi-Courier Integration Platform — create, look up, and bulk shipments.',
       },
     ],
     links: [
       {
-        rel: "icon",
-        href: "/favicon.ico",
+        rel: 'icon',
+        href: '/favicon.ico',
       },
     ],
   }),
@@ -48,19 +53,22 @@ function RootComponent() {
     <>
       <HeadContent />
       <ThemeProvider
-        attribute="class"
-        defaultTheme="dark"
+        attribute='class'
+        defaultTheme='dark'
         disableTransitionOnChange
-        storageKey="vite-ui-theme"
+        storageKey='vite-ui-theme'
       >
-        <div className="grid grid-rows-[auto_1fr] h-svh">
+        <div className='grid h-svh grid-rows-[auto_1fr]'>
           <Header />
           <Outlet />
         </div>
         <Toaster richColors />
       </ThemeProvider>
-      <TanStackRouterDevtools position="bottom-left" />
-      <ReactQueryDevtools position="bottom" buttonPosition="bottom-right" />
+      <TanStackRouterDevtools position='bottom-left' />
+      <ReactQueryDevtools
+        position='bottom'
+        buttonPosition='bottom-right'
+      />
     </>
   );
 }

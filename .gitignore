@@ -64,3 +64,6 @@ bts.jsonc
 .serena/.gitignore
 .serena/project.yml
 .pnpm-store/v11/index.db
+.agent
+.codex/hooks.json
+.impeccable
