@@ -9,6 +9,10 @@
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
+    "build:server": "pnpm --filter server build",
+    "build:web": "pnpm --filter web build",
+    "start:server": "pnpm --filter @multi-courier-integration-platform/db db:migrate && pnpm --filter server start",
+    "start:web": "pnpm --filter web exec vite preview --host 0.0.0.0 --port ${PORT:-3001}",
     "check-types": "turbo run check-types",
     "test": "turbo run test",
     "test:watch": "turbo run test:watch",
