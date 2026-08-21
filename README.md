@@ -147,11 +147,11 @@ Generate a public domain for `web`, then redeploy `server` if `CORS_ORIGIN` was 
 
 ### Troubleshooting: `No start command detected` / Railpack
 
-That means Railway ignored the Dockerfiles and tried to start the monorepo root. Fix:
+Usually one of:
 
-1. Add `RAILWAY_DOCKERFILE_PATH=apps/server/Dockerfile` (or `apps/web/...`) on that service, **or**
-2. Set Config file path to `/apps/server/railway.json` / `/apps/web/railway.json`, **or**
-3. Railpack fallback (no Docker): Build `pnpm run build:server` / Start `pnpm run start:server` (web: Build `pnpm run build:web`, Start `pnpm run start:web`, plus `VITE_SERVER_URL`).
+1. **`.dockerignore` was excluding `Dockerfile`** (fixed in repo) — push latest `chore/deployment` and redeploy.
+2. Service has no config — root `railway.json` defaults to the **server** image. For **web**, set Config file path to `/apps/web/railway.json` (or `RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile`).
+3. Railpack fallback: Build `pnpm run build:server` / Start `pnpm run start:server` (web: `build:web` / `start:web`).
 
 ### Notes
 
