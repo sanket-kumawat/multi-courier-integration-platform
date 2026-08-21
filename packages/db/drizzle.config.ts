@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { resolve } from "node:path";
 import dotenv from "dotenv";
 import { defineConfig } from "drizzle-kit";
 
-const localEnvPath = resolve(import.meta.dirname, "../../apps/server/.env");
+// Relative to packages/db (cwd when drizzle-kit runs via pnpm --filter)
+const localEnvPath = "../../apps/server/.env";
 if (existsSync(localEnvPath)) {
 	dotenv.config({ path: localEnvPath });
 }
