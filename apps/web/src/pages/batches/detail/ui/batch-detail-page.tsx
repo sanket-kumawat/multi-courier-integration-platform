@@ -25,13 +25,14 @@ import {
 	TableRow,
 } from "@multi-courier-integration-platform/ui/components/table";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { Loader2, PackageSearchIcon } from "lucide-react";
 import { useEffect } from "react";
 
 import { StatusBadge } from "@/entities/order";
 import { orpc } from "@/shared/api";
 import { getApiErrorCode, toastApiError } from "@/shared/lib";
+import { CopyValueButton } from "@/shared/ui";
 
 type BatchDetailPageProps = {
 	batchId: string;
@@ -77,8 +78,6 @@ function BatchStatusBadge({ status }: { status: BatchResponse["status"] }) {
 }
 
 export function BatchDetailPage({ batchId }: BatchDetailPageProps) {
-	const navigate = useNavigate();
-
 	const batchQuery = useQuery({
 		...orpc.getBatch.queryOptions({
 			input: { batch_id: batchId },
@@ -200,8 +199,7 @@ export function BatchDetailPage({ batchId }: BatchDetailPageProps) {
 					<CardHeader>
 						<CardTitle>Results</CardTitle>
 						<CardDescription>
-							Per-order outcomes. Click a row to open getOrder for that consumer
-							id.
+							Per-order outcomes. Open the order id to deep-link into getOrder.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>
@@ -222,35 +220,37 @@ export function BatchDetailPage({ batchId }: BatchDetailPageProps) {
 							</TableHeader>
 							<TableBody>
 								{batch.results.map((row) => (
-									<TableRow
-										key={`${row.position}-${row.order_id}`}
-										className="cursor-pointer"
-										tabIndex={0}
-										onClick={() => {
-											void navigate({
-												to: "/orders/$orderId",
-												params: { orderId: row.order_id },
-											});
-										}}
-										onKeyDown={(event) => {
-											if (event.key === "Enter" || event.key === " ") {
-												event.preventDefault();
-												void navigate({
-													to: "/orders/$orderId",
-													params: { orderId: row.order_id },
-												});
-											}
-										}}
-									>
+									<TableRow key={`${row.position}-${row.order_id}`}>
 										<TableCell className="tabular-nums text-muted-foreground">
 											{row.position}
 										</TableCell>
-										<TableCell className="font-medium">{row.order_id}</TableCell>
+										<TableCell>
+											<div className="flex items-center gap-1">
+												<Link
+													to="/orders/$orderId"
+													params={{ orderId: row.order_id }}
+													className="font-medium text-foreground underline-offset-4 hover:underline"
+												>
+													{row.order_id}
+												</Link>
+												<CopyValueButton
+													value={row.order_id}
+													label="order id"
+												/>
+											</div>
+										</TableCell>
 										<TableCell>
 											<StatusBadge status={row.status} />
 										</TableCell>
-										<TableCell className="tabular-nums">
-											{row.awb ?? "—"}
+										<TableCell>
+											{row.awb ? (
+												<div className="flex items-center gap-1 tabular-nums">
+													<span>{row.awb}</span>
+													<CopyValueButton value={row.awb} label="AWB" />
+												</div>
+											) : (
+												<span className="tabular-nums">—</span>
+											)}
 										</TableCell>
 										<TableCell>
 											{row.success ? (

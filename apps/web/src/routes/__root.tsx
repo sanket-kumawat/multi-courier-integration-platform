@@ -28,12 +28,12 @@ export const Route = createRootRouteWithContext<RouterAppContext>()({
   head: () => ({
     meta: [
       {
-        title: 'Courier ops demo',
+        title: 'Courier ops',
       },
       {
         name: 'description',
         content:
-          'Demo UI for the Multi-Courier Integration Platform — create, look up, and bulk shipments.',
+          'Courier ops — create, look up, track, cancel, and bulk shipments on the multi-courier API.',
       },
     ],
     links: [

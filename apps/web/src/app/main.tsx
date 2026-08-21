@@ -3,14 +3,14 @@ import { createRouter, RouterProvider } from '@tanstack/react-router';
 import ReactDOM from 'react-dom/client';
 
 import { orpc, queryClient } from '@/shared/api';
-import { Loader } from '@/shared/ui';
+import { PageSkeleton } from '@/shared/ui';
 import { routeTree } from '../routeTree.gen';
 
 const router = createRouter({
   routeTree,
   defaultPreload: 'intent',
   scrollRestoration: true,
-  defaultPendingComponent: () => <Loader />,
+  defaultPendingComponent: () => <PageSkeleton />,
   context: { orpc, queryClient },
   Wrap: function WrapComponent({ children }: { children: React.ReactNode }) {
     return (

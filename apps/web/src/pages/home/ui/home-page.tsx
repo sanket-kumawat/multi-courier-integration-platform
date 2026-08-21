@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from '@multi-courier-integration-platform/ui/components/card';
 import { Separator } from '@multi-courier-integration-platform/ui/components/separator';
+import { Skeleton } from '@multi-courier-integration-platform/ui/components/skeleton';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -39,8 +40,8 @@ export function HomePage() {
   const healthCheck = useQuery(orpc.healthCheck.queryOptions());
   const [courier, setCourier] = useState<string | null>(null);
 
-  const healthLabel = healthCheck.isLoading
-    ? 'Checking…'
+  const healthLabel = healthCheck.isPending
+    ? null
     : healthCheck.data
       ? 'Connected'
       : 'Disconnected';
@@ -48,10 +49,10 @@ export function HomePage() {
   return (
     <main className='mx-auto flex w-full max-w-3xl flex-col gap-8 px-4 py-8'>
       <div className='flex flex-col gap-1'>
-        <h1 className='font-medium text-xl tracking-tight'>Operations demo</h1>
+        <h1 className='font-medium text-xl tracking-tight'>Courier ops</h1>
         <p className='text-muted-foreground text-sm'>
-          Showcase the courier-agnostic API: create, look up, and bulk — without
-          partner payload shapes.
+          Create, look up, track, cancel, and bulk shipments on the
+          courier-agnostic API — without partner payload shapes.
         </p>
       </div>
 
@@ -63,15 +64,19 @@ export function HomePage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className='flex items-center gap-2'>
-            <span
-              className={`size-2 rounded-full ${
-                healthCheck.data ? 'bg-primary' : 'bg-destructive'
-              }`}
-              aria-hidden
-            />
-            <span className='text-sm'>{healthLabel}</span>
-          </div>
+          {healthCheck.isPending ? (
+            <Skeleton className='h-5 w-28' />
+          ) : (
+            <div className='flex items-center gap-2'>
+              <span
+                className={`size-2 rounded-full ${
+                  healthCheck.data ? 'bg-primary' : 'bg-destructive'
+                }`}
+                aria-hidden
+              />
+              <span className='text-sm'>{healthLabel}</span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
