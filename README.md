@@ -111,6 +111,8 @@ URBANEBOLT_PASSWORD=<your-password>
 URBANEBOLT_CUSTOMER_CODE=<your-customer-code>
 ```
 
+`DATABASE_URL` must be on the **server** service (Variables tab). Open the variable picker and reference your Postgres plugin — if the service is not named `Postgres`, use that name (e.g. `${{PostgreSQL.DATABASE_URL}}`). Without it, migrate fails with an empty url.
+
 Generate a public domain for `server`. Start runs migrations, then the API on `$PORT`.
 
 ### 3. Web service
