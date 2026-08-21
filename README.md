@@ -117,23 +117,25 @@ Generate a public domain for `server`. Start runs migrations, then the API on `$
 
 ### 3. Web service
 
-Vite lives under `apps/web`, so Railpack does **not** auto-detect SPA mode from the monorepo root. Configure the web service like this:
-
-**Settings**
+**Settings** (required)
 
 | Setting | Value |
 | --- | --- |
 | Config file path | `/apps/web/railway.json` |
-| Custom start command | leave **empty** (a start command disables SPA mode) |
+| Custom start command | `pnpm run start:web` (must be set — Metal often ignores config-only start) |
+| Custom build command | `pnpm run build:web` |
 
 **Variables**
 
 ```text
-RAILPACK_SPA_OUTPUT_DIR=apps/web/dist
 VITE_SERVER_URL=https://${{server.RAILWAY_PUBLIC_DOMAIN}}
 ```
 
-`RAILPACK_SPA_OUTPUT_DIR` is what fixes `No start command detected` for the web service. `VITE_SERVER_URL` must be set before the first successful build (baked into the bundle).
+Optional (Caddy SPA mode — not required if start command is set):
+
+```text
+RAILPACK_SPA_OUTPUT_DIR=apps/web/dist
+```
 
 Generate a public domain for `web`, then set server `CORS_ORIGIN` to that URL and redeploy server if needed.
 

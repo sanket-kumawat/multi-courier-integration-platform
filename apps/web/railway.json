@@ -9,10 +9,12 @@
       "packages/env/**",
       "packages/ui/**",
       "pnpm-lock.yaml",
-      "package.json"
+      "package.json",
+      "scripts/serve-web.mjs"
     ]
   },
   "deploy": {
+    "startCommand": "pnpm run start:web",
     "healthcheckPath": "/",
     "restartPolicyType": "ON_FAILURE",
     "restartPolicyMaxRetries": 5
