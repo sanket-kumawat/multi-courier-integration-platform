@@ -1,8 +1,19 @@
 {
   "$schema": "https://railway.com/railway.schema.json",
   "build": {
-    "builder": "DOCKERFILE",
-    "dockerfilePath": "apps/server/Dockerfile"
+    "builder": "RAILPACK",
+    "buildCommand": "pnpm run build:server",
+    "watchPatterns": [
+      "apps/server/**",
+      "packages/api/**",
+      "packages/couriers/**",
+      "packages/db/**",
+      "packages/env/**",
+      "pnpm-lock.yaml",
+      "package.json",
+      "railway.json",
+      "railpack.json"
+    ]
   },
   "deploy": {
     "startCommand": "pnpm run start:server",

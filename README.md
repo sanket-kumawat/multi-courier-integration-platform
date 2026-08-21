@@ -85,7 +85,7 @@ See [`DESIGN.md`](DESIGN.md) and [`docs/architecture.md`](docs/architecture.md).
 
 You need **three services** in one Railway project: Postgres, `server`, and `web`.
 
-This is a **shared pnpm monorepo**. Do **not** leave Root Directory empty with Railpack defaults — that builds the workspace root and fails with `No start command detected`.
+This is a **shared pnpm monorepo**. Root `railway.json` + `package.json` `"start"` target the **server** (Railpack). Do not rely on Dockerfile builds on Metal — Railway often still runs Railpack and ignores `builder: DOCKERFILE`.
 
 ### 1. Create the project
 
@@ -93,29 +93,13 @@ This is a **shared pnpm monorepo**. Do **not** leave Root Directory empty with R
 2. Add **PostgreSQL** (New → Database → PostgreSQL).
 3. Add two services from the same repo: `server` and `web` (Root Directory stays empty / repo root).
 
-### 2. Force Dockerfile builds (required)
+### 2. Server (default root config)
 
-Railpack will not find `apps/*/Dockerfile` on its own. For **each** service, either:
+Root `/railway.json` already sets Railpack build/start for the API. Confirm Settings → Build shows **Railpack** (or leave defaults) and Start is `pnpm run start:server`.
 
-**Option A — service variable (fastest)**
+Clear any leftover `RAILWAY_DOCKERFILE_PATH` variable on the service.
 
-| Service | Variable |
-| --- | --- |
-| `server` | `RAILWAY_DOCKERFILE_PATH=apps/server/Dockerfile` |
-| `web` | `RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile` |
-
-**Option B — config as code**
-
-| Service | Railway Config File |
-| --- | --- |
-| `server` | `/apps/server/railway.json` |
-| `web` | `/apps/web/railway.json` |
-
-(Settings → Config-as-code → Config file path. Use the leading `/`.)
-
-Then redeploy. Build logs should say `Using detected Dockerfile!`, not `Railpack`.
-
-### 3. Server variables
+Variables:
 
 ```text
 NODE_ENV=production
@@ -127,11 +111,13 @@ URBANEBOLT_PASSWORD=<your-password>
 URBANEBOLT_CUSTOMER_CODE=<your-customer-code>
 ```
 
-Generate a public domain for `server`. The image runs migrations on start, then listens on `$PORT`.
+Generate a public domain for `server`. Start runs migrations, then the API on `$PORT`.
 
-### 4. Web variables
+### 3. Web service
 
-Set **before** the first successful web build (baked into the Vite bundle):
+Set **Config file path** to `/apps/web/railway.json` (otherwise it will start the server).
+
+Variables (needed at **build** time):
 
 ```text
 VITE_SERVER_URL=https://${{server.RAILWAY_PUBLIC_DOMAIN}}
@@ -139,7 +125,7 @@ VITE_SERVER_URL=https://${{server.RAILWAY_PUBLIC_DOMAIN}}
 
 Generate a public domain for `web`, then redeploy `server` if `CORS_ORIGIN` was set too early.
 
-### 5. Verify
+### 4. Verify
 
 - API health: `https://<server-domain>/api/v1/health`
 - OpenAPI UI: `https://<server-domain>/api-reference`
@@ -147,11 +133,11 @@ Generate a public domain for `web`, then redeploy `server` if `CORS_ORIGIN` was 
 
 ### Troubleshooting: `No start command detected` / Railpack
 
-Usually one of:
+Railpack’s prepare step only accepts a root `package.json` `"start"` script (or `railpack.json`). Dashboard / `railway.json` start commands are **not** enough for that check.
 
-1. **`.dockerignore` was excluding `Dockerfile`** (fixed in repo) — push latest `chore/deployment` and redeploy.
-2. Service has no config — root `railway.json` defaults to the **server** image. For **web**, set Config file path to `/apps/web/railway.json` (or `RAILWAY_DOCKERFILE_PATH=apps/web/Dockerfile`).
-3. Railpack fallback: Build `pnpm run build:server` / Start `pnpm run start:server` (web: `build:web` / `start:web`).
+Ensure latest commit includes `"start": "pnpm run start:server"` in the root `package.json`, then redeploy.
+
+Dockerfile builder on Metal is unreliable here — prefer Railpack for this monorepo.
 
 ### Notes
 

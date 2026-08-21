@@ -1,5 +1,6 @@
 {
   "$schema": "https://schema.railpack.com",
+  "provider": "node",
   "deploy": {
     "startCommand": "pnpm run start:server"
   }
