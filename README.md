@@ -81,6 +81,72 @@ See [`DESIGN.md`](DESIGN.md) and [`docs/architecture.md`](docs/architecture.md).
 - **Bulk:** `202` + poll, PostgreSQL `SKIP LOCKED`, `p-limit(BULK_CONCURRENCY)` — not inline `Promise.all`.
 - **Logs:** evlog wide events (`order.create`, `order.track`, `order.cancel`, `order.bulk.accept`, `courier.http`). Tokens and `Authorization` are redacted. Partner bodies live in append-only `courier_api_calls`, not HTTP error envelopes.
 
+## Deploy on Railway
+
+You need **three services** in one Railway project: Postgres, `server`, and `web`.
+
+### 1. Create the project
+
+1. [New project](https://railway.com/new) → **Deploy from GitHub** → select this repo.
+2. Add a **PostgreSQL** plugin (New → Database → PostgreSQL).
+3. Add two empty services from the same repo (or duplicate the first): name them `server` and `web`.
+
+### 2. Server service
+
+Settings:
+
+| Setting | Value |
+| --- | --- |
+| Config as Code path | `apps/server/railway.json` |
+| Root directory | leave empty (repo root) |
+
+Variables:
+
+```text
+NODE_ENV=production
+DATABASE_URL=${{Postgres.DATABASE_URL}}
+CORS_ORIGIN=https://${{web.RAILWAY_PUBLIC_DOMAIN}}
+URBANEBOLT_BASE_URL=https://uat.urbanebolt.in
+URBANEBOLT_USERNAME=<your-username>
+URBANEBOLT_PASSWORD=<your-password>
+URBANEBOLT_CUSTOMER_CODE=<your-customer-code>
+```
+
+Generate a public domain for `server` (Settings → Networking → Generate domain).
+
+The server image runs `drizzle-kit migrate` on every start, then listens on `$PORT`.
+
+### 3. Web service
+
+Settings:
+
+| Setting | Value |
+| --- | --- |
+| Config as Code path | `apps/web/railway.json` |
+| Root directory | leave empty (repo root) |
+
+Variables (needed at **build** time — set before the first successful build):
+
+```text
+VITE_SERVER_URL=https://${{server.RAILWAY_PUBLIC_DOMAIN}}
+```
+
+Generate a public domain for `web`. If `CORS_ORIGIN` was set before the web domain existed, redeploy `server` after both domains are known.
+
+`VITE_SERVER_URL` is baked into the static bundle. Changing the server URL requires a **web rebuild**.
+
+### 4. Verify
+
+- API health: `https://<server-domain>/api/v1/health`
+- OpenAPI UI: `https://<server-domain>/api-reference`
+- App: `https://<web-domain>/`
+
+### Notes
+
+- Production refuses to boot without UrbaneBolt credentials (`assertUrbaneBoltConfigured`).
+- Prefer Railway variable references (`${{service.VAR}}`) over hard-coded URLs so domains stay in sync.
+- Local Docker Compose remains available via `pnpm run docker:up` (see Quick start).
+
 ## Scripts
 
 - `pnpm run dev` / `dev:server` / `dev:web`

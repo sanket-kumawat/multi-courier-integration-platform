@@ -1,0 +1,21 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "apps/server/Dockerfile",
+    "watchPatterns": [
+      "apps/server/**",
+      "packages/api/**",
+      "packages/couriers/**",
+      "packages/db/**",
+      "packages/env/**",
+      "pnpm-lock.yaml",
+      "package.json"
+    ]
+  },
+  "deploy": {
+    "healthcheckPath": "/api/v1/health",
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5
+  }
+}

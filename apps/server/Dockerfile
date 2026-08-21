@@ -10,11 +10,11 @@ ENV NODE_ENV=production
 RUN cd apps/server && pnpm run build
 
 FROM node:24-slim AS runner
+RUN npm install -g pnpm@11
 WORKDIR /app
 ENV NODE_ENV=production
 COPY --from=builder /app /app
 
 EXPOSE 3000
 
-WORKDIR /app/apps/server
-CMD ["node", "dist/index.mjs"]
+CMD ["sh", "-c", "pnpm --filter @multi-courier-integration-platform/db db:migrate && node apps/server/dist/index.mjs"]

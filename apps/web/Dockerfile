@@ -11,7 +11,11 @@ ENV NODE_ENV=production
 RUN cd apps/web && pnpm run build
 
 FROM nginx:alpine AS runner
+RUN apk add --no-cache gettext
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
+
+ENV PORT=80
 EXPOSE 80
+# nginx:alpine already runs /docker-entrypoint.d/20-envsubst-on-templates.sh
 CMD ["nginx", "-g", "daemon off;"]

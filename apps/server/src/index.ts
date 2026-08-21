@@ -144,7 +144,9 @@ app.get("/api-reference", (_req, res) => {
 </html>`);
 });
 
-app.listen(3000, () => {
-	console.log("Server is running on http://localhost:3000");
+const port = Number(process.env.PORT) || 3000;
+
+app.listen(port, () => {
+	console.log(`Server is running on http://localhost:${port}`);
 	bulkWorker.start({ intervalMs: env.BULK_POLL_INTERVAL_MS });
 });
